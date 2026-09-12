@@ -1,0 +1,1468 @@
+<title>JustClaim Fundraising Desk</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wght@500;600;700;800&family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<style>
+  :root {
+    --paper: #F2F3F5;
+    --surface: #FFFFFF;
+    --surface-2: #F8F9FA;
+    --surface-3: #EDEFF2;
+    --ink: #101214;
+    --ink-2: #3F454D;
+    --muted: #6A7078;
+    --line: #DEE1E5;
+    --line-strong: #C6CBD2;
+    --focus: #2F6FEB;
+    --good: #1E7A4B;
+    --warn: #B06A0F;
+    --bad: #A33A34;
+    --on-ink: #FFFFFF;
+    --shadow: 0 1px 2px rgba(16,18,20,.06), 0 8px 24px rgba(16,18,20,.08);
+    --radius: 6px;
+    --sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+    --display: "Archivo", "IBM Plex Sans", ui-sans-serif, system-ui, sans-serif;
+    --mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  :root:not([data-theme="light"]) {
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      color-scheme: dark;
+      --paper: #0C0D0F;
+      --surface: #15171A;
+      --surface-2: #1B1E22;
+      --surface-3: #22262B;
+      --ink: #EEF0F3;
+      --ink-2: #B9BFC7;
+      --muted: #878E97;
+      --line: #272B31;
+      --line-strong: #3A4048;
+      --focus: #6D9BFF;
+      --good: #4BB57C;
+      --warn: #D9A03F;
+      --bad: #E0736B;
+      --on-ink: #0C0D0F;
+      --shadow: 0 1px 2px rgba(0,0,0,.5), 0 10px 30px rgba(0,0,0,.45);
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --paper: #0C0D0F;
+    --surface: #15171A;
+    --surface-2: #1B1E22;
+    --surface-3: #22262B;
+    --ink: #EEF0F3;
+    --ink-2: #B9BFC7;
+    --muted: #878E97;
+    --line: #272B31;
+    --line-strong: #3A4048;
+    --focus: #6D9BFF;
+    --good: #4BB57C;
+    --warn: #D9A03F;
+    --bad: #E0736B;
+    --on-ink: #0C0D0F;
+    --shadow: 0 1px 2px rgba(0,0,0,.5), 0 10px 30px rgba(0,0,0,.45);
+  }
+
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, h4 { font-family: var(--display); font-weight: 700; margin: 0; text-wrap: balance; letter-spacing: -0.01em; }
+  button, input, select, textarea { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 3px; }
+  .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+  /* ---------- masthead ---------- */
+  .masthead {
+    position: sticky; top: 0; z-index: 40;
+    background: var(--ink);
+    color: var(--on-ink);
+    border-bottom: 1px solid var(--ink);
+  }
+  .masthead-inner {
+    max-width: 1480px; margin: 0 auto;
+    padding-inline: 20px; padding-block: 10px;
+    display: flex; align-items: center; gap: 20px; flex-wrap: wrap;
+  }
+  .brand { display: flex; align-items: center; gap: 12px; margin-right: auto; }
+  .brand svg { display: block; }
+  .wordmark {
+    font-family: var(--display); font-weight: 800; font-size: 15px;
+    line-height: .92; letter-spacing: -0.015em; text-transform: uppercase;
+  }
+  .brand-sub {
+    font-size: 10px; letter-spacing: .14em; text-transform: uppercase;
+    color: rgba(255,255,255,.55); font-weight: 500; margin-top: 4px;
+  }
+  :root[data-theme="dark"] .brand-sub, :root:not([data-theme="light"]) .brand-sub { color: rgba(255,255,255,.55); }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) .brand-sub { color: rgba(238,240,243,.5); }
+  }
+  .tabs { display: flex; gap: 2px; background: rgba(255,255,255,.08); padding: 3px; border-radius: 7px; }
+  .tab {
+    appearance: none; border: 0; background: transparent; color: rgba(255,255,255,.7);
+    padding: 6px 13px; border-radius: 5px; cursor: pointer; font-weight: 500; font-size: 13px;
+    white-space: nowrap;
+  }
+  .tab:hover { color: #fff; }
+  .tab[aria-current="page"] { background: #fff; color: #101214; font-weight: 600; }
+  .mast-tools { display: flex; align-items: center; gap: 10px; }
+  .sync {
+    display: inline-flex; align-items: center; gap: 7px;
+    font-size: 11px; letter-spacing: .06em; text-transform: uppercase;
+    color: rgba(255,255,255,.6); font-weight: 500;
+  }
+  .sync .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+  .sync.live .dot { background: #3FBE77; box-shadow: 0 0 0 3px rgba(63,190,119,.2); }
+  .sync.local .dot { background: #D9A03F; }
+  .ghost-btn {
+    appearance: none; background: transparent; border: 1px solid rgba(255,255,255,.25);
+    color: rgba(255,255,255,.85); padding: 6px 12px; border-radius: 5px; cursor: pointer; font-size: 13px;
+  }
+  .ghost-btn:hover { border-color: rgba(255,255,255,.6); color: #fff; }
+
+  /* ---------- layout ---------- */
+  .wrap { max-width: 1480px; margin: 0 auto; padding-inline: 20px; padding-block: 22px 64px; }
+  .page-head { display: flex; align-items: flex-end; gap: 16px; flex-wrap: wrap; margin-bottom: 18px; }
+  .page-head h1 { font-size: 22px; }
+  .page-head p { margin: 4px 0 0; color: var(--muted); font-size: 13px; max-width: 62ch; }
+  .spacer { margin-left: auto; }
+
+  .btn {
+    appearance: none; border: 1px solid var(--ink); background: var(--ink); color: var(--on-ink);
+    padding: 8px 14px; border-radius: var(--radius); cursor: pointer; font-weight: 600; font-size: 13px;
+    display: inline-flex; align-items: center; gap: 7px;
+  }
+  .btn:hover { opacity: .88; }
+  .btn.secondary { background: var(--surface); color: var(--ink); border-color: var(--line-strong); font-weight: 500; }
+  .btn.secondary:hover { background: var(--surface-3); opacity: 1; }
+  .btn.danger { background: transparent; color: var(--bad); border-color: color-mix(in srgb, var(--bad) 40%, transparent); font-weight: 500; }
+  .btn.danger:hover { background: color-mix(in srgb, var(--bad) 10%, transparent); opacity: 1; }
+  .btn.small { padding: 5px 10px; font-size: 12px; }
+
+  /* ---------- tiles ---------- */
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; margin-bottom: 18px; }
+  .tile { background: var(--surface); padding: 14px 16px; }
+  .tile .label { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  .tile .value { font-family: var(--mono); font-weight: 600; font-size: 22px; letter-spacing: -0.02em; margin-top: 6px; font-variant-numeric: tabular-nums; }
+  .tile .meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .tile.alert .value { color: var(--warn); }
+
+  /* ---------- toolbar ---------- */
+  .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  .field { display: flex; flex-direction: column; gap: 5px; }
+  .field > label, .lbl { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  input[type="text"], input[type="search"], input[type="date"], input[type="number"], select, textarea {
+    background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius);
+    padding: 7px 10px; min-width: 0; width: 100%;
+  }
+  input:disabled, select:disabled { opacity: .5; }
+  textarea { resize: vertical; min-height: 72px; line-height: 1.55; }
+  .toolbar .field { min-width: 140px; }
+  .toolbar .grow { flex: 1 1 220px; }
+
+  /* ---------- table ---------- */
+  .table-shell { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; min-width: 1080px; }
+  thead th {
+    position: sticky; top: 0; z-index: 2;
+    background: var(--surface-2); border-bottom: 1px solid var(--line-strong);
+    text-align: left; font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase;
+    color: var(--muted); font-weight: 600; padding: 9px 12px; white-space: nowrap; cursor: pointer; user-select: none;
+  }
+  thead th:hover { color: var(--ink); }
+  thead th .arrow { opacity: .45; font-size: 9px; }
+  tbody tr { border-bottom: 1px solid var(--line); cursor: pointer; }
+  tbody tr:last-child { border-bottom: 0; }
+  tbody tr:hover { background: var(--surface-2); }
+  tbody td { padding: 10px 12px; vertical-align: top; }
+  td.name { font-weight: 600; }
+  td.name .sub { font-weight: 400; color: var(--muted); font-size: 12.5px; }
+  td.amount { text-align: right; white-space: nowrap; }
+  td.amount .gbp { font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 600; }
+  td.amount .native { display: block; font-size: 11.5px; color: var(--muted); font-family: var(--mono); }
+  td.wrapcell { max-width: 260px; white-space: normal; color: var(--ink-2); font-size: 13px; }
+  .empty { padding: 48px 24px; text-align: center; color: var(--muted); }
+
+  .chip {
+    display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
+    padding: 3px 9px 3px 7px; border-radius: 999px; font-size: 12px; font-weight: 600;
+    border: 1px solid transparent;
+  }
+  .chip .sq { width: 7px; height: 7px; border-radius: 1px; }
+  .tag { display: inline-block; font-size: 11px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); border: 1px solid var(--line-strong); border-radius: 3px; padding: 1px 6px; }
+  .cold { color: var(--warn); font-weight: 600; }
+  .muted { color: var(--muted); }
+  .nowrap { white-space: nowrap; }
+
+  /* ---------- slide over ---------- */
+  .scrim { position: fixed; inset: 0; background: rgba(8,9,11,.44); z-index: 60; }
+  .sheet {
+    position: fixed; top: 0; right: 0; bottom: 0; width: min(620px, 100%);
+    background: var(--surface); border-left: 1px solid var(--line); z-index: 61;
+    display: flex; flex-direction: column; box-shadow: var(--shadow);
+  }
+  .sheet-head { padding: 16px 20px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 12px; }
+  .sheet-head h2 { font-size: 17px; }
+  .sheet-body { padding: 18px 20px 28px; overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 18px; }
+  .sheet-foot { padding: 12px 20px; border-top: 1px solid var(--line); display: flex; gap: 8px; align-items: center; background: var(--surface-2); }
+  .icon-btn { appearance: none; background: transparent; border: 1px solid var(--line-strong); border-radius: var(--radius); width: 30px; height: 30px; cursor: pointer; color: var(--muted); line-height: 1; }
+  .icon-btn:hover { color: var(--ink); background: var(--surface-3); }
+  fieldset { border: 0; border-top: 1px solid var(--line); padding: 16px 0 0; margin: 0; }
+  fieldset legend { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 600; padding: 0 8px 0 0; }
+  .grid2 { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+  .grid3 { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 12px; }
+  @media (max-width: 560px) { .grid2, .grid3 { grid-template-columns: 1fr; } }
+  .conv { display: flex; gap: 8px; }
+  .conv .cur { width: 96px; flex: 0 0 96px; }
+  .hint { font-size: 12px; color: var(--muted); }
+  .seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: var(--radius); overflow: hidden; }
+  .seg button { appearance: none; background: var(--surface); border: 0; padding: 7px 14px; cursor: pointer; font-size: 13px; color: var(--ink-2); }
+  .seg button[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); font-weight: 600; }
+  .log { display: flex; flex-direction: column; gap: 10px; }
+  .log-item { border-left: 2px solid var(--line-strong); padding: 2px 0 2px 10px; }
+  .log-item .meta { font-size: 11.5px; color: var(--muted); font-family: var(--mono); }
+  .log-item p { margin: 2px 0 0; white-space: pre-wrap; font-size: 13px; }
+
+  /* ---------- raise builder ---------- */
+  .raise-grid { display: grid; grid-template-columns: 380px minmax(0,1fr); gap: 20px; align-items: start; }
+  @media (max-width: 960px) { .raise-grid { grid-template-columns: 1fr; } }
+  .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
+  .panel-pad { padding: 18px; }
+  .sticky { position: sticky; top: 78px; }
+  .meter { height: 30px; border-radius: 4px; background: var(--surface-3); border: 1px solid var(--line); overflow: hidden; display: flex; position: relative; }
+  .meter .fill { background: var(--ink); height: 100%; }
+  .meter .over { background: var(--good); height: 100%; }
+  .big-num { font-family: var(--mono); font-size: 30px; font-weight: 600; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; line-height: 1.1; }
+  .kv { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px dashed var(--line); font-size: 13px; }
+  .kv:last-child { border-bottom: 0; }
+  .kv span:last-child { font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 500; }
+  .scenario-bar { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+  .scen-tab { appearance: none; border: 1px solid var(--line-strong); background: var(--surface); border-radius: var(--radius); padding: 6px 12px; cursor: pointer; font-size: 13px; }
+  .scen-tab[aria-current="true"] { background: var(--ink); color: var(--on-ink); border-color: var(--ink); font-weight: 600; }
+  .ledger { display: flex; flex-direction: column; }
+  .ledger-row { display: grid; grid-template-columns: 34px minmax(0,1fr) 150px 120px 120px; gap: 12px; align-items: center; padding: 10px 14px; border-bottom: 1px solid var(--line); cursor: pointer; }
+  .ledger-row:last-child { border-bottom: 0; }
+  .ledger-row:hover { background: var(--surface-2); }
+  .ledger-row.on { background: color-mix(in srgb, var(--focus) 7%, var(--surface)); }
+  .ledger-row.on:hover { background: color-mix(in srgb, var(--focus) 11%, var(--surface)); }
+  .ledger-head { display: grid; grid-template-columns: 34px minmax(0,1fr) 150px 120px 120px; gap: 12px; padding: 9px 14px; background: var(--surface-2); border-bottom: 1px solid var(--line-strong); font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  @media (max-width: 760px) {
+    .ledger-row, .ledger-head { grid-template-columns: 30px minmax(0,1fr) 110px; }
+    .ledger-row > .hide-sm, .ledger-head > .hide-sm { display: none; }
+  }
+  .tick { width: 20px; height: 20px; border-radius: 4px; border: 1.5px solid var(--line-strong); display: grid; place-items: center; background: var(--surface); }
+  .ledger-row.on .tick { background: var(--ink); border-color: var(--ink); color: var(--on-ink); }
+  .tick svg { display: none; }
+  .ledger-row.on .tick svg { display: block; }
+  .ra { text-align: right; font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+  /* ---------- timeline ---------- */
+  .tl-shell { border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); overflow-x: auto; }
+  .tl-inner { min-width: 900px; }
+  .tl-row { display: grid; grid-template-columns: 250px minmax(0,1fr); border-bottom: 1px solid var(--line); }
+  .tl-row:last-child { border-bottom: 0; }
+  .tl-row:hover { background: var(--surface-2); }
+  .tl-label { padding: 10px 12px; border-right: 1px solid var(--line); display: flex; flex-direction: column; gap: 4px; cursor: pointer; }
+  .tl-label .nm { font-weight: 600; font-size: 13px; }
+  .tl-label .chip { align-self: flex-start; }
+  .tl-track { position: relative; height: 46px; }
+  .tl-head { display: grid; grid-template-columns: 250px minmax(0,1fr); background: var(--surface-2); border-bottom: 1px solid var(--line-strong); position: sticky; top: 0; z-index: 2; }
+  .tl-head .tl-label { font-size: 10.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 600; cursor: default; }
+  .tl-axis { position: relative; height: 34px; }
+  .tl-month { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--line); font-size: 10.5px; color: var(--muted); padding: 9px 0 0 6px; white-space: nowrap; font-family: var(--mono); }
+  .tl-grid { position: absolute; top: 0; bottom: 0; border-left: 1px solid var(--line); opacity: .65; }
+  .tl-bar { position: absolute; top: 13px; height: 20px; border-radius: 3px; display: flex; align-items: center; padding: 0 8px; font-size: 11.5px; font-weight: 600; color: #fff; overflow: hidden; white-space: nowrap; min-width: 6px; }
+  .tl-bar.open { border: 1px dashed currentColor; background: transparent !important; }
+  .tl-cap { position: absolute; top: 15px; font-size: 11.5px; color: var(--muted); font-family: var(--mono); white-space: nowrap; }
+  .tl-last { position: absolute; top: 17px; width: 11px; height: 11px; border-radius: 50%; border: 2px solid var(--surface); }
+  .tl-today { position: absolute; top: 0; bottom: 0; width: 0; border-left: 2px dotted var(--bad); z-index: 3; }
+  .tl-legend { display: flex; gap: 14px; flex-wrap: wrap; align-items: center; margin: 12px 0 0; font-size: 12px; color: var(--muted); }
+
+  /* ---------- board ---------- */
+  .board { display: flex; gap: 12px; overflow-x: auto; padding-bottom: 8px; }
+  .col { flex: 0 0 232px; background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius); display: flex; flex-direction: column; }
+  .col-head { padding: 10px 12px; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 8px; }
+  .col-head .nm { font-weight: 600; font-size: 12.5px; }
+  .col-head .ct { margin-left: auto; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .col-sum { padding: 6px 12px; font-family: var(--mono); font-size: 12px; color: var(--muted); border-bottom: 1px solid var(--line); }
+  .col-body { padding: 8px; display: flex; flex-direction: column; gap: 8px; min-height: 60px; }
+  .card { background: var(--surface); border: 1px solid var(--line); border-radius: 4px; padding: 9px 10px; cursor: pointer; border-left-width: 3px; }
+  .card:hover { border-color: var(--line-strong); }
+  .card .nm { font-weight: 600; font-size: 12.5px; }
+  .card .row { display: flex; justify-content: space-between; gap: 8px; margin-top: 5px; font-size: 11.5px; color: var(--muted); font-family: var(--mono); }
+
+  /* ---------- modal ---------- */
+  .modal { position: fixed; z-index: 61; inset: 0; display: grid; place-items: center; padding: 20px; pointer-events: none; }
+  .modal-box { pointer-events: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); width: min(680px, 100%); max-height: 86vh; display: flex; flex-direction: column; }
+  .list-edit { display: flex; flex-direction: column; gap: 6px; }
+  .list-edit .item { display: flex; gap: 8px; align-items: center; }
+  .banner { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; background: color-mix(in srgb, var(--warn) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent); border-radius: var(--radius); padding: 10px 14px; margin-bottom: 16px; font-size: 13px; }
+  .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px; background: var(--ink); color: var(--on-ink); padding: 9px 16px; border-radius: 999px; font-size: 13px; z-index: 90; box-shadow: var(--shadow); }
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+
+<header class="masthead">
+  <div class="masthead-inner">
+    <div class="brand">
+      <svg width="34" height="27" viewBox="0 0 49 39" aria-hidden="true" fill="currentColor">
+        <rect x="20" y="0" width="9" height="9"></rect>
+        <rect x="10" y="10" width="9" height="9"></rect>
+        <rect x="30" y="10" width="9" height="9"></rect>
+        <rect x="0" y="20" width="9" height="9"></rect>
+        <rect x="20" y="20" width="9" height="9"></rect>
+        <rect x="40" y="20" width="9" height="9"></rect>
+        <rect x="10" y="30" width="9" height="9"></rect>
+        <rect x="20" y="30" width="9" height="9"></rect>
+        <rect x="30" y="30" width="9" height="9"></rect>
+      </svg>
+      <div>
+        <div class="wordmark">Just<br>Claim</div>
+      </div>
+      <div class="brand-sub">Fundraising desk</div>
+    </div>
+    <nav class="tabs" id="tabs" aria-label="Sections">
+      <button class="tab" data-page="targets" type="button">Targets</button>
+      <button class="tab" data-page="raise" type="button">Raise builder</button>
+      <button class="tab" data-page="timeline" type="button">Timeline</button>
+    </nav>
+    <div class="mast-tools">
+      <span class="sync" id="sync"><span class="dot"></span><span id="syncText">Connecting</span></span>
+      <button class="ghost-btn" id="settingsBtn" type="button">Settings</button>
+    </div>
+  </div>
+</header>
+
+<main class="wrap" id="app"></main>
+<div id="overlay"></div>
+<div id="toast"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  /* ============================ constants ============================ */
+
+  var STAGE_COLOURS = ["#99A0AA", "#6E86C4", "#4C79C9", "#2E8BA8", "#1F9487", "#2E9455", "#1C7A3E", "#9B5B56"];
+
+  var DEFAULT_SETTINGS = {
+    team: ["Unassigned"],
+    stages: [
+      { id: "identified",    name: "Identified",    colour: "#99A0AA", closed: false, dead: false },
+      { id: "contacted",     name: "Contacted",     colour: "#6E86C4", closed: false, dead: false },
+      { id: "first_meeting", name: "First meeting", colour: "#4C79C9", closed: false, dead: false },
+      { id: "diligence",     name: "Diligence",     colour: "#2E8BA8", closed: false, dead: false },
+      { id: "term_sheet",    name: "Term sheet",    colour: "#1F9487", closed: false, dead: false },
+      { id: "committed",     name: "Committed",     colour: "#2E9455", closed: true,  dead: false },
+      { id: "closed",        name: "Closed",        colour: "#1C7A3E", closed: true,  dead: false },
+      { id: "passed",        name: "Passed",        colour: "#9B5B56", closed: false, dead: true }
+    ],
+    fx: { GBP: 1, EUR: 1.17, USD: 1.27 },
+    fxAsAt: "",
+    coldDays: 21
+  };
+
+  var CURRENCIES = ["GBP", "EUR", "USD"];
+  var LS_KEY = "justclaim-crm-v1";
+  var LS_PREFS = "justclaim-crm-prefs-v1";
+
+  /* ============================ state ============================ */
+
+  var db = null;
+  var state = {
+    page: "targets",
+    ready: false,
+    targets: {},
+    scenarios: {},
+    settings: clone(DEFAULT_SETTINGS),
+    settingsExists: false,
+    activeScenario: "base",
+    sort: { key: "amount", dir: "desc" },
+    filter: { q: "", stage: "", owner: "" },
+    showPassed: false,
+    editing: null,
+    draft: null,
+    modal: null
+  };
+
+  var local = { targets: {}, scenarios: {}, settings: null };
+
+  /* ============================ helpers ============================ */
+
+  function clone(o) { return JSON.parse(JSON.stringify(o)); }
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
+  }
+  function newId(p) { return p + Date.now().toString(36) + Math.random().toString(36).slice(2, 7); }
+  function hexA(hex, a) {
+    var h = String(hex || "#888").replace("#", "");
+    if (h.length === 3) h = h[0] + h[0] + h[1] + h[1] + h[2] + h[2];
+    var n = parseInt(h, 16);
+    return "rgba(" + ((n >> 16) & 255) + "," + ((n >> 8) & 255) + "," + (n & 255) + "," + a + ")";
+  }
+  function todayISO() {
+    var d = new Date();
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate());
+  }
+  function pad(n) { return (n < 10 ? "0" : "") + n; }
+  function parseISO(s) {
+    if (!s || typeof s !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(s)) return null;
+    var t = Date.parse(s + "T00:00:00Z");
+    return isNaN(t) ? null : t;
+  }
+  function fmtDate(s) {
+    var t = parseISO(s);
+    if (t == null) return "—";
+    var d = new Date(t);
+    return d.getUTCDate() + " " + ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][d.getUTCMonth()] + " " + String(d.getUTCFullYear()).slice(2);
+  }
+  function daysSince(s) {
+    var t = parseISO(s);
+    if (t == null) return null;
+    return Math.floor((Date.now() - t) / 86400000);
+  }
+  function money(n, cur) {
+    if (n == null || isNaN(n)) return "—";
+    try {
+      return new Intl.NumberFormat("en-GB", { style: "currency", currency: cur || "GBP", maximumFractionDigits: 0 }).format(n);
+    } catch (e) {
+      return (cur || "GBP") + " " + Math.round(n).toLocaleString("en-GB");
+    }
+  }
+  function toGBP(amount, cur) {
+    if (amount == null || isNaN(amount)) return 0;
+    var rate = state.settings.fx[cur || "GBP"];
+    if (!rate || isNaN(rate) || rate <= 0) rate = 1;
+    return amount / rate;
+  }
+  function num(v) {
+    if (v === "" || v == null) return null;
+    var n = parseFloat(String(v).replace(/[, ]/g, ""));
+    return isNaN(n) ? null : n;
+  }
+  function stageById(id) {
+    var list = state.settings.stages;
+    for (var i = 0; i < list.length; i++) if (list[i].id === id) return list[i];
+    return { id: id || "", name: id || "Unset", colour: "#99A0AA", closed: false, dead: false };
+  }
+  function stageIndex(id) {
+    var list = state.settings.stages;
+    for (var i = 0; i < list.length; i++) if (list[i].id === id) return i;
+    return 99;
+  }
+  function targetList() {
+    var out = [];
+    for (var k in state.targets) if (Object.prototype.hasOwnProperty.call(state.targets, k)) {
+      var t = state.targets[k];
+      if (t && typeof t === "object") { t = clone(t); t.id = k; out.push(t); }
+    }
+    return out;
+  }
+  function chip(stageId) {
+    var s = stageById(stageId);
+    return '<span class="chip" style="background:' + hexA(s.colour, 0.14) + ';border-color:' + hexA(s.colour, 0.35) + ';color:' + s.colour + '">' +
+      '<span class="sq" style="background:' + s.colour + '"></span>' + esc(s.name) + "</span>";
+  }
+  function toast(msg) {
+    var el = document.getElementById("toast");
+    el.innerHTML = '<div class="toast">' + esc(msg) + "</div>";
+    clearTimeout(toast._t);
+    toast._t = setTimeout(function () { el.innerHTML = ""; }, 2600);
+  }
+
+  function blankTarget() {
+    return {
+      name: "", contact: "", relationship: "",
+      stage: state.settings.stages[0] ? state.settings.stages[0].id : "identified",
+      owner: state.settings.team[0] || "",
+      amount: null, currency: "GBP",
+      instrument: "equity",
+      pik: null, cashRate: null, months: null, noteTerms: "",
+      firstConversationDate: "", lastConversationDate: "", targetCloseDate: "",
+      nextSteps: "", notes: "", comments: [],
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
+    };
+  }
+
+  /* ============================ storage ============================ */
+
+  function loadPrefs() {
+    try {
+      var p = JSON.parse(localStorage.getItem(LS_PREFS) || "{}");
+      if (p.page) state.page = p.page;
+      if (p.activeScenario) state.activeScenario = p.activeScenario;
+      if (p.sort) state.sort = p.sort;
+    } catch (e) { /* prefs are a convenience only */ }
+  }
+  function savePrefs() {
+    try {
+      localStorage.setItem(LS_PREFS, JSON.stringify({ page: state.page, activeScenario: state.activeScenario, sort: state.sort }));
+    } catch (e) { /* ignore */ }
+  }
+  function loadLocal() {
+    try {
+      var raw = JSON.parse(localStorage.getItem(LS_KEY) || "null");
+      if (raw) local = { targets: raw.targets || {}, scenarios: raw.scenarios || {}, settings: raw.settings || null };
+    } catch (e) { /* ignore */ }
+    state.targets = local.targets;
+    state.scenarios = local.scenarios;
+    if (local.settings) { state.settings = mergeSettings(local.settings); state.settingsExists = true; }
+  }
+  function saveLocal() {
+    try { localStorage.setItem(LS_KEY, JSON.stringify(local)); }
+    catch (e) { toast("Could not save locally — browser storage is blocked."); }
+  }
+  function mergeSettings(s) {
+    var out = clone(DEFAULT_SETTINGS);
+    if (!s || typeof s !== "object") return out;
+    if (Array.isArray(s.team) && s.team.length) out.team = s.team.slice();
+    if (Array.isArray(s.stages) && s.stages.length) out.stages = s.stages.slice();
+    if (s.fx && typeof s.fx === "object") out.fx = { GBP: 1, EUR: num(s.fx.EUR) || DEFAULT_SETTINGS.fx.EUR, USD: num(s.fx.USD) || DEFAULT_SETTINGS.fx.USD };
+    if (typeof s.fxAsAt === "string") out.fxAsAt = s.fxAsAt;
+    if (num(s.coldDays)) out.coldDays = num(s.coldDays);
+    return out;
+  }
+
+  function setSync(mode, text) {
+    var el = document.getElementById("sync");
+    el.className = "sync " + mode;
+    document.getElementById("syncText").textContent = text;
+  }
+
+  async function initStore() {
+    try {
+      db = window.claude && window.claude.use ? await window.claude.use("db") : null;
+    } catch (e) { db = null; }
+
+    if (!db) {
+      loadLocal();
+      state.ready = true;
+      setSync("local", "This device only");
+      render();
+      return;
+    }
+
+    setSync("live", "Live · shared");
+
+    db.collection("targets").onSnapshot(function (snap) {
+      var next = {};
+      snap.docs.forEach(function (d) { if (d.exists) next[d.id] = d.data(); });
+      state.targets = next;
+      state.ready = true;
+      render();
+    }, snapErr);
+
+    db.collection("scenarios").onSnapshot(function (snap) {
+      var next = {};
+      snap.docs.forEach(function (d) { if (d.exists) next[d.id] = d.data(); });
+      state.scenarios = next;
+      render();
+    }, snapErr);
+
+    db.doc("config/settings").onSnapshot(function (d) {
+      state.settings = d.exists ? mergeSettings(d.data()) : clone(DEFAULT_SETTINGS);
+      state.settingsExists = d.exists;
+      render();
+    }, snapErr);
+  }
+
+  function snapErr(e) {
+    if (e && e.code === "revoked") setSync("local", "Read access ended");
+    else setSync("local", "Sync interrupted");
+  }
+
+  async function putTarget(id, data) {
+    data.updatedAt = new Date().toISOString();
+    if (db) {
+      try { await db.doc("targets/" + id).set(data); }
+      catch (e) { toast(writeMsg(e)); return false; }
+    } else {
+      local.targets[id] = data; saveLocal(); state.targets = local.targets; render();
+    }
+    return true;
+  }
+  async function removeTarget(id) {
+    if (db) {
+      try { await db.doc("targets/" + id).delete(); }
+      catch (e) { toast(writeMsg(e)); return false; }
+    } else {
+      delete local.targets[id]; saveLocal(); state.targets = local.targets; render();
+    }
+    return true;
+  }
+  async function putSettings(s) {
+    if (db) {
+      try { await db.doc("config/settings").set(s); }
+      catch (e) { toast(writeMsg(e)); return false; }
+    } else {
+      local.settings = s; saveLocal(); state.settings = mergeSettings(s); state.settingsExists = true; render();
+    }
+    return true;
+  }
+  async function putScenario(id, s) {
+    s.updatedAt = new Date().toISOString();
+    if (db) {
+      try { await db.doc("scenarios/" + id).set(s); }
+      catch (e) { toast(writeMsg(e)); return false; }
+    } else {
+      local.scenarios[id] = s; saveLocal(); state.scenarios = local.scenarios; render();
+    }
+    return true;
+  }
+  async function removeScenario(id) {
+    if (db) {
+      try { await db.doc("scenarios/" + id).delete(); }
+      catch (e) { toast(writeMsg(e)); return false; }
+    } else {
+      delete local.scenarios[id]; saveLocal(); state.scenarios = local.scenarios; render();
+    }
+    return true;
+  }
+  function writeMsg(e) {
+    var code = e && e.code;
+    if (code === "quota_exceeded") return "The shared database is full. Delete some records and try again.";
+    if (code === "resource_exhausted") return "Too many changes at once. Wait a moment and try again.";
+    if (code === "revoked") return "Your access to this CRM ended. Reload the page.";
+    if (code === "invalid_argument") return "That record could not be saved — it may be too large.";
+    return "Could not save. Check your connection and try again.";
+  }
+
+  /* ============================ scenarios ============================ */
+
+  function scenarioList() {
+    var out = [];
+    for (var k in state.scenarios) if (Object.prototype.hasOwnProperty.call(state.scenarios, k)) {
+      var s = clone(state.scenarios[k]); s.id = k; out.push(s);
+    }
+    out.sort(function (a, b) { return String(a.name || "").localeCompare(String(b.name || "")); });
+    if (!out.length) out.push({ id: "base", name: "Base case", target: null, selected: [], virtual: true });
+    return out;
+  }
+  function activeScenario() {
+    var list = scenarioList();
+    for (var i = 0; i < list.length; i++) if (list[i].id === state.activeScenario) return list[i];
+    state.activeScenario = list[0].id;
+    return list[0];
+  }
+  function saveActiveScenario(patch) {
+    var s = activeScenario();
+    var body = {
+      name: patch.name !== undefined ? patch.name : (s.name || "Base case"),
+      target: patch.target !== undefined ? patch.target : (s.target == null ? null : s.target),
+      selected: patch.selected !== undefined ? patch.selected : (s.selected || []).slice()
+    };
+    return putScenario(s.id, body);
+  }
+
+  /* ============================ derived ============================ */
+
+  function filtered() {
+    var list = targetList();
+    var q = state.filter.q.trim().toLowerCase();
+    return list.filter(function (t) {
+      if (state.filter.stage && t.stage !== state.filter.stage) return false;
+      if (state.filter.owner && (t.owner || "") !== state.filter.owner) return false;
+      if (!q) return true;
+      return [t.name, t.contact, t.relationship, t.nextSteps, t.notes].join(" ").toLowerCase().indexOf(q) !== -1;
+    });
+  }
+  function sorted(list) {
+    var k = state.sort.key, dir = state.sort.dir === "asc" ? 1 : -1;
+    var copy = list.slice();
+    copy.sort(function (a, b) {
+      var av, bv;
+      if (k === "amount") { av = toGBP(a.amount, a.currency); bv = toGBP(b.amount, b.currency); }
+      else if (k === "stage") { av = stageIndex(a.stage); bv = stageIndex(b.stage); }
+      else if (k === "last") { av = parseISO(a.lastConversationDate) || 0; bv = parseISO(b.lastConversationDate) || 0; }
+      else if (k === "close") { av = parseISO(a.targetCloseDate) || 8.64e15; bv = parseISO(b.targetCloseDate) || 8.64e15; }
+      else { av = String(a[k] || "").toLowerCase(); bv = String(b[k] || "").toLowerCase(); }
+      if (av < bv) return -1 * dir;
+      if (av > bv) return 1 * dir;
+      return String(a.name || "").localeCompare(String(b.name || ""));
+    });
+    return copy;
+  }
+
+  /* ============================ render ============================ */
+
+  function render() {
+    document.querySelectorAll("#tabs .tab").forEach(function (b) {
+      if (b.dataset.page === state.page) b.setAttribute("aria-current", "page");
+      else b.removeAttribute("aria-current");
+    });
+    var app = document.getElementById("app");
+    if (!state.ready) { app.innerHTML = '<div class="empty">Loading the pipeline…</div>'; return; }
+    if (state.page === "targets") app.innerHTML = viewTargets();
+    else if (state.page === "raise") app.innerHTML = viewRaise();
+    else app.innerHTML = viewTimeline();
+  }
+
+  /* ---------- page 1 ---------- */
+
+  function viewTargets() {
+    var all = targetList();
+    var rows = sorted(filtered());
+    var live = all.filter(function (t) { return !stageById(t.stage).dead; });
+    var totalGBP = live.reduce(function (a, t) { return a + toGBP(t.amount, t.currency); }, 0);
+    var wonGBP = all.filter(function (t) { return stageById(t.stage).closed; })
+      .reduce(function (a, t) { return a + toGBP(t.amount, t.currency); }, 0);
+    var cold = live.filter(function (t) {
+      var d = daysSince(t.lastConversationDate);
+      return d == null || d > state.settings.coldDays;
+    });
+
+    var h = "";
+    if (all.some(function (t) { return t.isExample; })) {
+      h += '<div class="banner"><strong>Example records.</strong> The rows marked “Example” are sample data so the pipeline is not empty. ' +
+        '<button class="btn small secondary" data-act="clear-examples" type="button">Delete all examples</button></div>';
+    }
+    h += '<div class="page-head"><div><h1>Fundraising targets</h1>' +
+      '<p>Every partner conversation in flight, who owns it, what it is worth and what happens next. Amounts convert to sterling at the rates held in Settings.</p></div>' +
+      '<div class="spacer"></div><button class="btn" data-act="new" type="button">+ Add target</button></div>';
+
+    h += '<div class="tiles">' +
+      tile("In play", money(totalGBP, "GBP"), live.length + " live conversation" + (live.length === 1 ? "" : "s")) +
+      tile("Committed &amp; closed", money(wonGBP, "GBP"), all.filter(function (t) { return stageById(t.stage).closed; }).length + " of " + all.length + " targets") +
+      tile("Average ticket", live.length ? money(totalGBP / live.length, "GBP") : "—", "Across live conversations") +
+      tile("Going cold", String(cold.length), "No contact in " + state.settings.coldDays + "+ days", cold.length > 0) +
+      "</div>";
+
+    h += '<div class="toolbar">' +
+      '<div class="field grow"><label for="fq">Search</label><input id="fq" type="search" placeholder="Name, relationship, next steps…" value="' + esc(state.filter.q) + '"></div>' +
+      '<div class="field"><label for="fstage">Stage</label><select id="fstage"><option value="">All stages</option>' +
+      state.settings.stages.map(function (s) {
+        return '<option value="' + esc(s.id) + '"' + (state.filter.stage === s.id ? " selected" : "") + ">" + esc(s.name) + "</option>";
+      }).join("") + "</select></div>" +
+      '<div class="field"><label for="fowner">Owner</label><select id="fowner"><option value="">Everyone</option>' +
+      state.settings.team.map(function (m) {
+        return '<option value="' + esc(m) + '"' + (state.filter.owner === m ? " selected" : "") + ">" + esc(m) + "</option>";
+      }).join("") + "</select></div>" +
+      '<div class="field"><label>&nbsp;</label><button class="btn secondary" data-act="export" type="button">Export CSV</button></div>' +
+      "</div>";
+
+    if (!rows.length) {
+      h += '<div class="table-shell"><div class="empty">' +
+        (all.length ? "No targets match those filters." : "No targets yet. Add the first fundraising conversation to get started.") +
+        "</div></div>";
+      return h;
+    }
+
+    h += '<div class="table-shell"><table><thead><tr>' +
+      th("name", "Target") + th("relationship", "Relationship") + th("stage", "Stage") + th("owner", "Owner") +
+      th("amount", "Indicative", "right") + "<th>Instrument</th>" + th("last", "Last spoke") +
+      "<th>Next steps</th>" + th("close", "Target close") +
+      "</tr></thead><tbody>";
+
+    rows.forEach(function (t) {
+      var d = daysSince(t.lastConversationDate);
+      var isCold = !stageById(t.stage).dead && (d == null || d > state.settings.coldDays);
+      h += '<tr data-id="' + esc(t.id) + '">' +
+        '<td class="name">' + esc(t.name || "Untitled") + (t.isExample ? ' <span class="tag">Example</span>' : "") +
+        (t.contact ? '<div class="sub">' + esc(t.contact) + "</div>" : "") + "</td>" +
+        '<td class="wrapcell">' + (t.relationship ? esc(t.relationship) : '<span class="muted">—</span>') + "</td>" +
+        "<td>" + chip(t.stage) + "</td>" +
+        '<td class="nowrap">' + (t.owner ? esc(t.owner) : '<span class="muted">Unassigned</span>') + "</td>" +
+        '<td class="amount"><span class="gbp">' + (t.amount == null ? "—" : money(toGBP(t.amount, t.currency), "GBP")) + "</span>" +
+        (t.amount != null && t.currency !== "GBP" ? '<span class="native">' + money(t.amount, t.currency) + "</span>" : "") + "</td>" +
+        '<td class="nowrap">' + (t.instrument === "note"
+          ? '<span class="tag">Note</span> <span class="num muted">' + noteSummary(t) + "</span>"
+          : '<span class="tag">Equity</span>') + "</td>" +
+        '<td class="nowrap ' + (isCold ? "cold" : "") + '">' + fmtDate(t.lastConversationDate) +
+        (d != null ? '<div class="sub muted num" style="font-size:11.5px">' + d + "d ago</div>" : "") + "</td>" +
+        '<td class="wrapcell">' + (t.nextSteps ? esc(t.nextSteps) : '<span class="muted">—</span>') + "</td>" +
+        '<td class="nowrap num">' + fmtDate(t.targetCloseDate) + "</td>" +
+        "</tr>";
+    });
+    h += "</tbody></table></div>";
+    return h;
+  }
+
+  function noteSummary(t) {
+    var bits = [];
+    if (t.pik != null) bits.push(t.pik + "% PIK");
+    if (t.cashRate != null) bits.push(t.cashRate + "% cash");
+    if (t.months != null) bits.push(t.months + "m");
+    return bits.join(" · ");
+  }
+  function tile(label, value, meta, alert) {
+    return '<div class="tile' + (alert ? " alert" : "") + '"><div class="label">' + label + '</div><div class="value">' + value + '</div><div class="meta">' + meta + "</div></div>";
+  }
+  function th(key, label, align) {
+    var on = state.sort.key === key;
+    return '<th data-sort="' + key + '"' + (align === "right" ? ' style="text-align:right"' : "") + ">" + esc(label) +
+      (on ? ' <span class="arrow">' + (state.sort.dir === "asc" ? "▲" : "▼") + "</span>" : "") + "</th>";
+  }
+
+  /* ---------- page 2 ---------- */
+
+  function viewRaise() {
+    var scen = activeScenario();
+    var scens = scenarioList();
+    var selected = (scen.selected || []).slice();
+    var all = targetList();
+    var pool = all.filter(function (t) { return state.showPassed || !stageById(t.stage).dead; });
+    pool.sort(function (a, b) { return toGBP(b.amount, b.currency) - toGBP(a.amount, a.currency); });
+
+    var chosen = all.filter(function (t) { return selected.indexOf(t.id) !== -1; });
+    var totalGBP = chosen.reduce(function (a, t) { return a + toGBP(t.amount, t.currency); }, 0);
+    var target = num(scen.target) || 0;
+    var pct = target > 0 ? (totalGBP / target) * 100 : 0;
+    var gap = target - totalGBP;
+
+    var byCur = {};
+    chosen.forEach(function (t) {
+      var c = t.currency || "GBP";
+      byCur[c] = (byCur[c] || 0) + (t.amount || 0);
+    });
+
+    var h = '<div class="page-head"><div><h1>Raise builder</h1>' +
+      '<p>Set the amount to be raised, then switch targets in and out to see which combinations get there. Totals are gross indicative commitments converted to sterling.</p></div></div>';
+
+    h += '<div class="scenario-bar">';
+    scens.forEach(function (s) {
+      h += '<button class="scen-tab" data-scen="' + esc(s.id) + '" aria-current="' + (s.id === scen.id) + '" type="button">' + esc(s.name || "Untitled") + "</button>";
+    });
+    h += '<button class="btn small secondary" data-act="new-scenario" type="button">+ New scenario</button>';
+    if (!scen.virtual && scens.length > 1) {
+      h += '<button class="btn small danger" data-act="del-scenario" type="button">Delete “' + esc(scen.name) + '”</button>';
+    }
+    h += "</div>";
+
+    h += '<div class="raise-grid">';
+
+    /* left: the meter */
+    h += '<div class="panel sticky"><div class="panel-pad">' +
+      '<div class="field"><label for="raiseTarget">Target raise (GBP)</label>' +
+      '<input id="raiseTarget" type="number" min="0" step="50000" placeholder="e.g. 5000000" value="' + (scen.target == null ? "" : esc(scen.target)) + '"></div>' +
+      '<div style="margin-top:18px"><div class="lbl">Selected</div>' +
+      '<div class="big-num" style="color:' + (target > 0 && totalGBP >= target ? "var(--good)" : "var(--ink)") + '">' + money(totalGBP, "GBP") + "</div>" +
+      '<div class="hint">' + chosen.length + " of " + pool.length + " targets" + (target > 0 ? " · " + pct.toFixed(0) + "% of target" : "") + "</div></div>";
+
+    if (target > 0) {
+      var fillPct = Math.max(0, Math.min(100, pct));
+      var overPct = pct > 100 ? Math.min(100, pct - 100) : 0;
+      h += '<div class="meter" style="margin-top:12px" role="img" aria-label="' + pct.toFixed(0) + ' per cent of target">' +
+        '<div class="fill" style="width:' + fillPct + '%"></div>' +
+        (overPct ? '<div class="over" style="width:' + overPct + '%"></div>' : "") + "</div>" +
+        '<div style="margin-top:12px">' +
+        '<div class="kv"><span>' + (gap > 0 ? "Still to find" : "Over target by") + '</span><span style="color:' + (gap > 0 ? "var(--warn)" : "var(--good)") + '">' + money(Math.abs(gap), "GBP") + "</span></div>" +
+        '<div class="kv"><span>Target</span><span>' + money(target, "GBP") + "</span></div>" +
+        "</div>";
+    } else {
+      h += '<p class="hint" style="margin-top:12px">Enter a target to see the gap.</p>';
+    }
+
+    if (Object.keys(byCur).length) {
+      h += '<div style="margin-top:16px"><div class="lbl">Selected by currency</div>';
+      CURRENCIES.forEach(function (c) {
+        if (byCur[c]) h += '<div class="kv"><span>' + c + "</span><span>" + money(byCur[c], c) + "</span></div>";
+      });
+      h += "</div>";
+    }
+
+    h += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:18px">' +
+      '<button class="btn small secondary" data-act="fill" type="button">Fill to target</button>' +
+      '<button class="btn small secondary" data-act="select-all" type="button">Select all</button>' +
+      '<button class="btn small secondary" data-act="select-none" type="button">Clear</button>' +
+      "</div>";
+    h += "</div></div>";
+
+    /* right: the ledger */
+    h += '<div class="panel"><div class="ledger-head">' +
+      "<div></div><div>Target</div><div class='hide-sm'>Stage</div><div class='ra hide-sm'>Indicative</div><div class='ra'>In GBP</div>" +
+      "</div><div class='ledger'>";
+
+    if (!pool.length) {
+      h += '<div class="empty">No targets to select yet.</div>';
+    } else {
+      pool.forEach(function (t) {
+        var on = selected.indexOf(t.id) !== -1;
+        h += '<div class="ledger-row' + (on ? " on" : "") + '" data-pick="' + esc(t.id) + '" role="button" tabindex="0" aria-pressed="' + on + '">' +
+          '<div><span class="tick"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M2 6.4 4.7 9 10 3.2"/></svg></span></div>' +
+          '<div><div style="font-weight:600">' + esc(t.name || "Untitled") + "</div>" +
+          '<div class="hint">' + (t.owner ? esc(t.owner) : "Unassigned") + (t.instrument === "note" ? " · convertible note" : "") + "</div></div>" +
+          "<div class='hide-sm'>" + chip(t.stage) + "</div>" +
+          "<div class='ra hide-sm'>" + (t.amount == null ? "—" : money(t.amount, t.currency)) + "</div>" +
+          "<div class='ra' style='font-weight:600'>" + (t.amount == null ? "—" : money(toGBP(t.amount, t.currency), "GBP")) + "</div>" +
+          "</div>";
+      });
+    }
+    h += "</div></div></div>";
+
+    h += '<label style="display:inline-flex;gap:8px;align-items:center;margin-top:14px;font-size:13px;cursor:pointer">' +
+      '<input type="checkbox" id="showPassed"' + (state.showPassed ? " checked" : "") + ' style="width:auto"> Include targets that have passed</label>';
+    return h;
+  }
+
+  /* ---------- page 3 ---------- */
+
+  function viewTimeline() {
+    var all = targetList().filter(function (t) { return state.showPassed || !stageById(t.stage).dead; });
+    var h = '<div class="page-head"><div><h1>Pipeline timeline</h1>' +
+      '<p>Each target from its first conversation through to expected completion, with the stage it has reached. The dot marks the last conversation; the dotted red line is today.</p></div>' +
+      '<div class="spacer"></div>' +
+      '<label style="display:inline-flex;gap:8px;align-items:center;font-size:13px;cursor:pointer">' +
+      '<input type="checkbox" id="showPassed2"' + (state.showPassed ? " checked" : "") + ' style="width:auto"> Include passed</label></div>';
+
+    if (!all.length) {
+      h += '<div class="panel"><div class="empty">Nothing to plot yet. Add targets with a first conversation date.</div></div>';
+      return h;
+    }
+
+    /* work out the window */
+    var now = Date.now();
+    var lo = null, hi = null;
+    all.forEach(function (t) {
+      [t.firstConversationDate, t.lastConversationDate, t.targetCloseDate].forEach(function (d) {
+        var v = parseISO(d);
+        if (v == null) return;
+        if (lo == null || v < lo) lo = v;
+        if (hi == null || v > hi) hi = v;
+      });
+    });
+    if (lo == null) lo = now;
+    if (hi == null) hi = now;
+    if (hi - now < 60 * 86400000) hi = now + 90 * 86400000;
+    if (now - lo < 30 * 86400000) lo = now - 30 * 86400000;
+
+    var start = new Date(Date.UTC(new Date(lo).getUTCFullYear(), new Date(lo).getUTCMonth(), 1));
+    var endD = new Date(hi);
+    var end = new Date(Date.UTC(endD.getUTCFullYear(), endD.getUTCMonth() + 1, 1));
+    var span = end.getTime() - start.getTime();
+    var months = [];
+    var cur = new Date(start.getTime());
+    while (cur.getTime() < end.getTime()) {
+      months.push(new Date(cur.getTime()));
+      cur = new Date(Date.UTC(cur.getUTCFullYear(), cur.getUTCMonth() + 1, 1));
+    }
+    var trackWidth = Math.max(660, months.length * 84);
+    function posPct(t) { return ((t - start.getTime()) / span) * 100; }
+
+    var rowsSorted = all.slice().sort(function (a, b) {
+      var av = parseISO(a.targetCloseDate) || 8.64e15, bv = parseISO(b.targetCloseDate) || 8.64e15;
+      if (av !== bv) return av - bv;
+      return stageIndex(b.stage) - stageIndex(a.stage);
+    });
+
+    var monthHTML = months.map(function (m, i) {
+      var label = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][m.getUTCMonth()];
+      if (m.getUTCMonth() === 0 || i === 0) label += " " + String(m.getUTCFullYear()).slice(2);
+      return '<div class="tl-month" style="left:' + posPct(m.getTime()) + '%">' + label + "</div>";
+    }).join("");
+    var gridHTML = months.map(function (m) {
+      return '<div class="tl-grid" style="left:' + posPct(m.getTime()) + '%"></div>';
+    }).join("");
+    var todayHTML = (now >= start.getTime() && now <= end.getTime())
+      ? '<div class="tl-today" style="left:' + posPct(now) + '%"></div>' : "";
+
+    h += '<div class="tl-shell"><div class="tl-inner" style="min-width:' + (250 + trackWidth) + 'px">';
+    h += '<div class="tl-head"><div class="tl-label">Target · stage</div><div class="tl-axis">' + monthHTML + todayHTML + "</div></div>";
+
+    rowsSorted.forEach(function (t) {
+      var s = stageById(t.stage);
+      var a = parseISO(t.firstConversationDate);
+      var z = parseISO(t.targetCloseDate);
+      var lastT = parseISO(t.lastConversationDate);
+      var bar = "";
+      var openEnded = false;
+      if (a == null && z == null) {
+        bar = '<div class="tl-cap" style="left:8px">No dates recorded</div>';
+      } else {
+        var from = a != null ? a : Math.max(start.getTime(), (z || now) - 30 * 86400000);
+        var to = z;
+        if (to == null) { to = Math.max(now, lastT || now, from + 14 * 86400000); openEnded = true; }
+        if (to < from) to = from + 7 * 86400000;
+        var left = posPct(from), width = Math.max(0.6, posPct(to) - posPct(from));
+        var amountLabel = t.amount != null ? money(toGBP(t.amount, t.currency), "GBP") : "";
+        bar = '<div class="tl-bar' + (openEnded ? " open" : "") + '" style="left:' + left + "%;width:" + width + "%;background:" + s.colour + ";color:" + (openEnded ? s.colour : "#fff") + '" title="' + esc((t.name || "") + " · " + s.name) + '">' +
+          (openEnded ? "" : amountLabel) + "</div>";
+        if (openEnded) bar += '<div class="tl-cap" style="left:calc(' + (left + width) + '% + 8px)">' + (amountLabel ? amountLabel + " · " : "") + "no close date</div>";
+        if (lastT != null) {
+          bar += '<div class="tl-last" style="left:calc(' + posPct(lastT) + '% - 5px);background:' + s.colour + '" title="Last conversation ' + esc(fmtDate(t.lastConversationDate)) + '"></div>';
+        }
+      }
+      h += '<div class="tl-row"><div class="tl-label" data-id="' + esc(t.id) + '">' +
+        '<div class="nm">' + esc(t.name || "Untitled") + "</div>" + chip(t.stage) + "</div>" +
+        '<div class="tl-track">' + gridHTML + todayHTML + bar + "</div></div>";
+    });
+    h += "</div></div>";
+
+    h += '<div class="tl-legend"><span><strong style="color:var(--ink)">Bar</strong> first conversation → expected completion</span>' +
+      '<span><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--muted);vertical-align:middle"></span> last conversation</span>' +
+      '<span><span style="display:inline-block;width:14px;border-top:2px dotted var(--bad);vertical-align:middle"></span> today</span>' +
+      "<span>Dashed bar = no target close date set</span></div>";
+
+    /* board */
+    h += '<h2 style="margin:34px 0 4px;font-size:17px">Stage board</h2>' +
+      '<p class="hint" style="margin:0 0 14px">Where every conversation currently sits. Click a card to open the record.</p><div class="board">';
+    state.settings.stages.forEach(function (s) {
+      var inStage = all.filter(function (t) { return t.stage === s.id; });
+      var sum = inStage.reduce(function (a, t) { return a + toGBP(t.amount, t.currency); }, 0);
+      h += '<div class="col"><div class="col-head"><span class="sq" style="width:9px;height:9px;border-radius:1px;background:' + s.colour + ';display:inline-block"></span>' +
+        '<span class="nm">' + esc(s.name) + '</span><span class="ct">' + inStage.length + "</span></div>" +
+        '<div class="col-sum">' + money(sum, "GBP") + "</div><div class='col-body'>";
+      if (!inStage.length) h += '<div class="hint" style="padding:6px 2px">—</div>';
+      inStage.sort(function (a, b) { return toGBP(b.amount, b.currency) - toGBP(a.amount, a.currency); }).forEach(function (t) {
+        h += '<div class="card" data-id="' + esc(t.id) + '" style="border-left-color:' + s.colour + '">' +
+          '<div class="nm">' + esc(t.name || "Untitled") + "</div>" +
+          '<div class="row"><span>' + (t.amount == null ? "—" : money(toGBP(t.amount, t.currency), "GBP")) + "</span><span>" + fmtDate(t.targetCloseDate) + "</span></div>" +
+          '<div class="row"><span>' + esc(t.owner || "Unassigned") + "</span></div></div>";
+      });
+      h += "</div></div>";
+    });
+    h += "</div>";
+    return h;
+  }
+
+  /* ============================ editor sheet ============================ */
+
+  function openEditor(id) {
+    state.editing = id;
+    state.draft = id === "new" ? blankTarget() : clone(state.targets[id] || blankTarget());
+    if (!Array.isArray(state.draft.comments)) state.draft.comments = [];
+    renderEditor();
+  }
+  function closeOverlay() {
+    state.editing = null; state.draft = null; state.modal = null;
+    document.getElementById("overlay").innerHTML = "";
+  }
+
+  function renderEditor() {
+    var d = state.draft;
+    var isNew = state.editing === "new";
+    var gbp = d.amount != null ? money(toGBP(d.amount, d.currency), "GBP") : "—";
+    var team = state.settings.team.slice();
+    if (d.owner && team.indexOf(d.owner) === -1) team.push(d.owner);
+
+    var h = '<div class="scrim" data-act="close"></div><aside class="sheet" role="dialog" aria-modal="true" aria-label="Target record">' +
+      '<div class="sheet-head"><h2>' + (isNew ? "New target" : esc(d.name || "Target")) + "</h2>" +
+      '<div class="spacer" style="margin-left:auto"></div>' +
+      '<button class="icon-btn" data-act="close" type="button" aria-label="Close">✕</button></div>' +
+      '<div class="sheet-body">';
+
+    h += '<div class="grid2">' +
+      f("e_name", "Name", '<input id="e_name" type="text" data-k="name" value="' + esc(d.name) + '" placeholder="Fund, family office or individual">') +
+      f("e_contact", "Main contact", '<input id="e_contact" type="text" data-k="contact" value="' + esc(d.contact) + '" placeholder="Person we deal with">') +
+      "</div>";
+
+    h += f("e_rel", "Relationship", '<input id="e_rel" type="text" data-k="relationship" value="' + esc(d.relationship) + '" placeholder="How we know them, introducer, prior dealings">');
+
+    h += '<div class="grid2">' +
+      f("e_stage", "Stage", '<select id="e_stage" data-k="stage">' + state.settings.stages.map(function (s) {
+        return '<option value="' + esc(s.id) + '"' + (d.stage === s.id ? " selected" : "") + ">" + esc(s.name) + "</option>";
+      }).join("") + "</select>") +
+      f("e_owner", "Responsible", '<select id="e_owner" data-k="owner">' + team.map(function (m) {
+        return '<option value="' + esc(m) + '"' + (d.owner === m ? " selected" : "") + ">" + esc(m) + "</option>";
+      }).join("") + "</select>") +
+      "</div>";
+
+    h += '<fieldset><legend>Indicative commitment</legend>' +
+      '<div class="conv">' +
+      '<div class="field" style="flex:1"><label for="e_amt">Amount</label><input id="e_amt" type="number" step="1000" data-k="amount" value="' + (d.amount == null ? "" : esc(d.amount)) + '" placeholder="0"></div>' +
+      '<div class="field cur"><label for="e_cur">Currency</label><select id="e_cur" data-k="currency">' +
+      CURRENCIES.map(function (c) { return '<option value="' + c + '"' + (d.currency === c ? " selected" : "") + ">" + c + "</option>"; }).join("") +
+      "</select></div></div>" +
+      '<p class="hint" style="margin:8px 0 0">Sterling equivalent <strong class="num">' + gbp + "</strong>" +
+      (d.currency !== "GBP" ? " at " + state.settings.fx[d.currency] + " " + d.currency + " per £1" : "") + "</p>" +
+      '<div style="margin-top:14px" class="seg" role="group" aria-label="Instrument">' +
+      '<button type="button" data-inst="equity" aria-pressed="' + (d.instrument !== "note") + '">Equity</button>' +
+      '<button type="button" data-inst="note" aria-pressed="' + (d.instrument === "note") + '">Convertible note</button>' +
+      "</div>";
+
+    if (d.instrument === "note") {
+      h += '<div class="grid3" style="margin-top:12px">' +
+        f("e_pik", "PIK rate %", '<input id="e_pik" type="number" step="0.25" data-k="pik" value="' + (d.pik == null ? "" : esc(d.pik)) + '" placeholder="e.g. 8">') +
+        f("e_cash", "Cash rate %", '<input id="e_cash" type="number" step="0.25" data-k="cashRate" value="' + (d.cashRate == null ? "" : esc(d.cashRate)) + '" placeholder="e.g. 4">') +
+        f("e_months", "Months to conversion", '<input id="e_months" type="number" step="1" data-k="months" value="' + (d.months == null ? "" : esc(d.months)) + '" placeholder="e.g. 24">') +
+        "</div>" +
+        f("e_terms", "Other note terms", '<textarea id="e_terms" data-k="noteTerms" placeholder="Discount, valuation cap, conversion triggers, security, ranking…" style="min-height:60px">' + esc(d.noteTerms) + "</textarea>");
+    }
+    h += "</fieldset>";
+
+    h += '<fieldset><legend>Timing</legend><div class="grid3">' +
+      f("e_first", "First conversation", '<input id="e_first" type="date" data-k="firstConversationDate" value="' + esc(d.firstConversationDate) + '">') +
+      f("e_last", "Last conversation", '<input id="e_last" type="date" data-k="lastConversationDate" value="' + esc(d.lastConversationDate) + '">') +
+      f("e_close", "Targeting close", '<input id="e_close" type="date" data-k="targetCloseDate" value="' + esc(d.targetCloseDate) + '">') +
+      "</div></fieldset>";
+
+    h += '<fieldset><legend>Next steps</legend>' +
+      '<textarea id="e_next" data-k="nextSteps" placeholder="What has to happen, by when, by whom">' + esc(d.nextSteps) + "</textarea></fieldset>";
+
+    h += '<fieldset><legend>Other pertinent details</legend>' +
+      '<textarea id="e_notes" data-k="notes" placeholder="Mandate, cheque size, sector appetite, constraints, internal read">' + esc(d.notes) + "</textarea></fieldset>";
+
+    h += '<fieldset><legend>Conversation log</legend>';
+    if (d.comments.length) {
+      h += '<div class="log">' + d.comments.slice().reverse().map(function (c) {
+        return '<div class="log-item"><div class="meta">' + esc(c.author || "Team") + " · " + esc(fmtDate(c.date)) + "</div><p>" + esc(c.text) + "</p></div>";
+      }).join("") + "</div>";
+    } else {
+      h += '<p class="hint">No entries yet.</p>';
+    }
+    h += '<div class="conv" style="margin-top:12px;align-items:flex-end">' +
+      '<div class="field" style="flex:1"><label for="e_comment">Add an entry</label><input id="e_comment" type="text" placeholder="What was said"></div>' +
+      '<div class="field" style="width:150px;flex:0 0 150px"><label for="e_cauthor">By</label><select id="e_cauthor">' +
+      team.map(function (m) { return '<option value="' + esc(m) + '"' + (d.owner === m ? " selected" : "") + ">" + esc(m) + "</option>"; }).join("") +
+      "</select></div>" +
+      '<button class="btn secondary" data-act="add-comment" type="button">Add</button></div>';
+    h += "</fieldset>";
+
+    h += "</div>";
+    h += '<div class="sheet-foot">' +
+      '<button class="btn" data-act="save" type="button">' + (isNew ? "Create target" : "Save changes") + "</button>" +
+      '<button class="btn secondary" data-act="close" type="button">Cancel</button>';
+    if (!isNew) h += '<div style="margin-left:auto"></div><button class="btn danger" data-act="delete" type="button">Delete</button>';
+    h += "</div></aside>";
+
+    document.getElementById("overlay").innerHTML = h;
+    var first = document.getElementById("e_name");
+    if (first && isNew) first.focus();
+  }
+
+  function f(id, label, control) {
+    return '<div class="field"><label for="' + id + '">' + label + "</label>" + control + "</div>";
+  }
+
+  function readDraftFromDOM() {
+    var d = state.draft;
+    document.querySelectorAll(".sheet [data-k]").forEach(function (el) {
+      var k = el.dataset.k;
+      if (k === "amount" || k === "pik" || k === "cashRate" || k === "months") d[k] = num(el.value);
+      else d[k] = el.value;
+    });
+  }
+
+  /* ============================ settings modal ============================ */
+
+  function openSettings() {
+    state.modal = { kind: "settings", draft: clone(state.settings) };
+    renderSettings();
+  }
+
+  function renderSettings() {
+    var s = state.modal.draft;
+    var h = '<div class="scrim" data-act="close"></div><div class="modal"><div class="modal-box" role="dialog" aria-modal="true" aria-label="Settings">' +
+      '<div class="sheet-head"><h2>Settings</h2><div style="margin-left:auto"></div>' +
+      '<button class="icon-btn" data-act="close" type="button" aria-label="Close">✕</button></div>' +
+      '<div class="sheet-body">';
+
+    h += '<fieldset style="border-top:0;padding-top:0"><legend>Team</legend>' +
+      '<p class="hint" style="margin:0 0 10px">Everyone who can own a conversation.</p><div class="list-edit">';
+    s.team.forEach(function (m, i) {
+      h += '<div class="item"><input type="text" data-team="' + i + '" value="' + esc(m) + '">' +
+        '<button class="icon-btn" data-rm-team="' + i + '" type="button" aria-label="Remove ' + esc(m) + '">✕</button></div>';
+    });
+    h += '</div><button class="btn small secondary" data-act="add-team" type="button" style="margin-top:8px">+ Add person</button></fieldset>';
+
+    h += "<fieldset><legend>Stages</legend>" +
+      '<p class="hint" style="margin:0 0 10px">Rename freely. Removing a stage is blocked while targets still sit in it.</p><div class="list-edit">';
+    s.stages.forEach(function (st, i) {
+      var inUse = targetList().filter(function (t) { return t.stage === st.id; }).length;
+      h += '<div class="item"><span class="sq" style="width:10px;height:10px;border-radius:2px;background:' + st.colour + ';flex:0 0 10px"></span>' +
+        '<input type="text" data-stage="' + i + '" value="' + esc(st.name) + '">' +
+        '<span class="hint num" style="width:46px;text-align:right">' + inUse + '</span>' +
+        '<button class="icon-btn" data-mv-stage="' + i + '" data-dir="-1" type="button" aria-label="Move up">↑</button>' +
+        '<button class="icon-btn" data-mv-stage="' + i + '" data-dir="1" type="button" aria-label="Move down">↓</button>' +
+        '<button class="icon-btn" data-rm-stage="' + i + '" type="button" aria-label="Remove stage">✕</button></div>';
+    });
+    h += '</div><button class="btn small secondary" data-act="add-stage" type="button" style="margin-top:8px">+ Add stage</button></fieldset>';
+
+    h += "<fieldset><legend>Exchange rates</legend>" +
+      '<p class="hint" style="margin:0 0 10px">Sterling is the base. Enter how many units buy £1. These are entered by hand — update them when they move.</p>' +
+      '<div class="grid3">' +
+      f("fx_eur", "EUR per £1", '<input id="fx_eur" type="number" step="0.0001" value="' + esc(s.fx.EUR) + '">') +
+      f("fx_usd", "USD per £1", '<input id="fx_usd" type="number" step="0.0001" value="' + esc(s.fx.USD) + '">') +
+      f("fx_asat", "Rates as at", '<input id="fx_asat" type="date" value="' + esc(s.fxAsAt) + '">') +
+      "</div></fieldset>";
+
+    h += "<fieldset><legend>Going cold</legend>" +
+      f("cold_days", "Flag a conversation after this many days of silence", '<input id="cold_days" type="number" step="1" min="1" value="' + esc(s.coldDays) + '">') +
+      "</fieldset>";
+
+    h += "</div><div class='sheet-foot'>" +
+      '<button class="btn" data-act="save-settings" type="button">Save settings</button>' +
+      '<button class="btn secondary" data-act="close" type="button">Cancel</button>' +
+      "</div></div></div>";
+
+    document.getElementById("overlay").innerHTML = h;
+  }
+
+  function readSettingsFromDOM() {
+    var s = state.modal.draft;
+    document.querySelectorAll("[data-team]").forEach(function (el) { s.team[+el.dataset.team] = el.value; });
+    document.querySelectorAll("[data-stage]").forEach(function (el) { s.stages[+el.dataset.stage].name = el.value; });
+    var eur = num(document.getElementById("fx_eur").value);
+    var usd = num(document.getElementById("fx_usd").value);
+    s.fx = { GBP: 1, EUR: eur && eur > 0 ? eur : state.settings.fx.EUR, USD: usd && usd > 0 ? usd : state.settings.fx.USD };
+    s.fxAsAt = document.getElementById("fx_asat").value;
+    var cd = num(document.getElementById("cold_days").value);
+    s.coldDays = cd && cd > 0 ? cd : 21;
+  }
+
+  /* ============================ export ============================ */
+
+  function csvCell(v) {
+    var s = v == null ? "" : String(v);
+    return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  }
+  async function exportCSV() {
+    var head = ["Name", "Contact", "Relationship", "Stage", "Responsible", "Amount", "Currency", "Amount GBP",
+      "Instrument", "PIK %", "Cash rate %", "Months to conversion", "Note terms",
+      "First conversation", "Last conversation", "Targeting close", "Next steps", "Other details"];
+    var lines = [head.map(csvCell).join(",")];
+    sorted(targetList()).forEach(function (t) {
+      lines.push([t.name, t.contact, t.relationship, stageById(t.stage).name, t.owner,
+        t.amount, t.currency, t.amount == null ? "" : Math.round(toGBP(t.amount, t.currency)),
+        t.instrument === "note" ? "Convertible note" : "Equity", t.pik, t.cashRate, t.months, t.noteTerms,
+        t.firstConversationDate, t.lastConversationDate, t.targetCloseDate, t.nextSteps, t.notes
+      ].map(csvCell).join(","));
+    });
+    var csv = lines.join("\r\n");
+    var dl = null;
+    try { dl = window.claude && window.claude.use ? await window.claude.use("downloads") : null; } catch (e) { dl = null; }
+    if (dl) {
+      try {
+        await dl.save({ filename: "justclaim-fundraising-" + todayISO() + ".csv", data: csv });
+        toast("Export ready.");
+        return;
+      } catch (e) {
+        if (e && e.code === "declined") return;
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(csv);
+      toast("CSV copied to the clipboard.");
+    } catch (e) {
+      toast("Export is unavailable in this view.");
+    }
+  }
+
+  /* ============================ events ============================ */
+
+  document.getElementById("tabs").addEventListener("click", function (e) {
+    var b = e.target.closest(".tab");
+    if (!b) return;
+    state.page = b.dataset.page;
+    savePrefs();
+    render();
+  });
+  document.getElementById("settingsBtn").addEventListener("click", openSettings);
+
+  document.getElementById("app").addEventListener("click", function (e) {
+    var act = e.target.closest("[data-act]");
+    if (act) {
+      var a = act.dataset.act;
+      if (a === "new") { openEditor("new"); return; }
+      if (a === "export") { exportCSV(); return; }
+      if (a === "clear-examples") { clearExamples(); return; }
+      if (a === "new-scenario") { newScenario(); return; }
+      if (a === "del-scenario") { deleteScenario(); return; }
+      if (a === "fill") { fillToTarget(); return; }
+      if (a === "select-all") { setSelection(pickable().map(function (t) { return t.id; })); return; }
+      if (a === "select-none") { setSelection([]); return; }
+    }
+    var sortTh = e.target.closest("th[data-sort]");
+    if (sortTh) {
+      var k = sortTh.dataset.sort;
+      if (state.sort.key === k) state.sort.dir = state.sort.dir === "asc" ? "desc" : "asc";
+      else state.sort = { key: k, dir: k === "amount" ? "desc" : "asc" };
+      savePrefs(); render(); return;
+    }
+    var scen = e.target.closest("[data-scen]");
+    if (scen) { state.activeScenario = scen.dataset.scen; savePrefs(); render(); return; }
+    var pick = e.target.closest("[data-pick]");
+    if (pick) { togglePick(pick.dataset.pick); return; }
+    var row = e.target.closest("[data-id]");
+    if (row) { openEditor(row.dataset.id); return; }
+  });
+
+  document.getElementById("app").addEventListener("keydown", function (e) {
+    var pick = e.target.closest("[data-pick]");
+    if (pick && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); togglePick(pick.dataset.pick); }
+  });
+
+  document.getElementById("app").addEventListener("input", function (e) {
+    var id = e.target.id;
+    if (id === "fq") { state.filter.q = e.target.value; debounceRender(); }
+    else if (id === "raiseTarget") { debounceTarget(e.target.value); }
+  });
+  document.getElementById("app").addEventListener("change", function (e) {
+    var id = e.target.id;
+    if (id === "fstage") { state.filter.stage = e.target.value; render(); }
+    else if (id === "fowner") { state.filter.owner = e.target.value; render(); }
+    else if (id === "showPassed" || id === "showPassed2") { state.showPassed = e.target.checked; render(); }
+  });
+
+  var rt = null;
+  function debounceRender() {
+    clearTimeout(rt);
+    rt = setTimeout(function () {
+      var el = document.getElementById("fq");
+      var pos = el ? el.selectionStart : null;
+      render();
+      var el2 = document.getElementById("fq");
+      if (el2) { el2.focus(); if (pos != null) el2.setSelectionRange(pos, pos); }
+    }, 220);
+  }
+  var tt = null;
+  function debounceTarget(v) {
+    clearTimeout(tt);
+    tt = setTimeout(function () { saveActiveScenario({ target: num(v) }); }, 500);
+  }
+
+  document.getElementById("overlay").addEventListener("click", function (e) {
+    var act = e.target.closest("[data-act]");
+    if (act) {
+      var a = act.dataset.act;
+      if (a === "close") { closeOverlay(); return; }
+      if (a === "save") { saveTarget(); return; }
+      if (a === "delete") { deleteTarget(); return; }
+      if (a === "add-comment") { addComment(); return; }
+      if (a === "add-team") { readSettingsFromDOM(); state.modal.draft.team.push("New person"); renderSettings(); return; }
+      if (a === "add-stage") {
+        readSettingsFromDOM();
+        var n = state.modal.draft.stages.length;
+        state.modal.draft.stages.push({ id: newId("s_"), name: "New stage", colour: STAGE_COLOURS[n % STAGE_COLOURS.length], closed: false, dead: false });
+        renderSettings(); return;
+      }
+      if (a === "save-settings") { saveSettings(); return; }
+    }
+    var inst = e.target.closest("[data-inst]");
+    if (inst) { readDraftFromDOM(); state.draft.instrument = inst.dataset.inst; renderEditor(); return; }
+    var rmTeam = e.target.closest("[data-rm-team]");
+    if (rmTeam) {
+      readSettingsFromDOM();
+      var ti = +rmTeam.dataset.rmTeam;
+      if (state.modal.draft.team.length <= 1) { toast("Keep at least one person on the team."); return; }
+      state.modal.draft.team.splice(ti, 1); renderSettings(); return;
+    }
+    var rmStage = e.target.closest("[data-rm-stage]");
+    if (rmStage) {
+      readSettingsFromDOM();
+      var si = +rmStage.dataset.rmStage;
+      var st = state.modal.draft.stages[si];
+      var used = targetList().filter(function (t) { return t.stage === st.id; }).length;
+      if (used) { toast(used + " target" + (used === 1 ? " sits" : "s sit") + " in " + st.name + ". Move them first."); return; }
+      if (state.modal.draft.stages.length <= 2) { toast("Keep at least two stages."); return; }
+      state.modal.draft.stages.splice(si, 1); renderSettings(); return;
+    }
+    var mv = e.target.closest("[data-mv-stage]");
+    if (mv) {
+      readSettingsFromDOM();
+      var i = +mv.dataset.mvStage, dir = +mv.dataset.dir, j = i + dir;
+      var arr = state.modal.draft.stages;
+      if (j < 0 || j >= arr.length) return;
+      var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
+      renderSettings(); return;
+    }
+  });
+
+  document.getElementById("overlay").addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && e.target.id === "e_comment") { e.preventDefault(); addComment(); }
+  });
+  document.addEventListener("keydown", function (e) {
+    if (e.key === "Escape" && (state.editing || state.modal)) closeOverlay();
+  });
+
+  /* ---------- actions ---------- */
+
+  function pickable() {
+    return targetList().filter(function (t) { return state.showPassed || !stageById(t.stage).dead; });
+  }
+  function setSelection(ids) { saveActiveScenario({ selected: ids }); }
+  function togglePick(id) {
+    var sel = (activeScenario().selected || []).slice();
+    var i = sel.indexOf(id);
+    if (i === -1) sel.push(id); else sel.splice(i, 1);
+    setSelection(sel);
+  }
+  function fillToTarget() {
+    var scen = activeScenario();
+    var target = num(scen.target) || 0;
+    if (!target) { toast("Set a target raise first."); return; }
+    var sel = (scen.selected || []).slice();
+    var total = targetList().filter(function (t) { return sel.indexOf(t.id) !== -1; })
+      .reduce(function (a, t) { return a + toGBP(t.amount, t.currency); }, 0);
+    var rest = pickable().filter(function (t) { return sel.indexOf(t.id) === -1 && t.amount; })
+      .sort(function (a, b) { return toGBP(b.amount, b.currency) - toGBP(a.amount, a.currency); });
+    for (var i = 0; i < rest.length && total < target; i++) {
+      sel.push(rest[i].id);
+      total += toGBP(rest[i].amount, rest[i].currency);
+    }
+    setSelection(sel);
+    if (total < target) toast("Every available target selected and still short of the number.");
+  }
+  async function newScenario() {
+    var name = prompt("Name this scenario", "Scenario " + (scenarioList().length + 1));
+    if (!name) return;
+    var id = newId("sc_");
+    var ok = await putScenario(id, { name: name, target: activeScenario().target || null, selected: (activeScenario().selected || []).slice() });
+    if (ok) { state.activeScenario = id; savePrefs(); render(); }
+  }
+  async function deleteScenario() {
+    var s = activeScenario();
+    if (s.virtual) return;
+    if (!confirm("Delete the scenario “" + s.name + "”? The targets themselves are not affected.")) return;
+    await removeScenario(s.id);
+    state.activeScenario = "base";
+    savePrefs(); render();
+  }
+  async function saveTarget() {
+    readDraftFromDOM();
+    var d = state.draft;
+    if (!d.name || !d.name.trim()) { toast("Give the target a name."); var n = document.getElementById("e_name"); if (n) n.focus(); return; }
+    var id = state.editing === "new" ? newId("t_") : state.editing;
+    delete d.id;
+    var ok = await putTarget(id, d);
+    if (ok) { closeOverlay(); toast(state.editing === "new" ? "Target added." : "Saved."); }
+  }
+  async function deleteTarget() {
+    if (!confirm("Delete “" + (state.draft.name || "this target") + "”? This cannot be undone.")) return;
+    var ok = await removeTarget(state.editing);
+    if (ok) { closeOverlay(); toast("Target deleted."); }
+  }
+  function addComment() {
+    var box = document.getElementById("e_comment");
+    var who = document.getElementById("e_cauthor");
+    if (!box || !box.value.trim()) return;
+    readDraftFromDOM();
+    state.draft.comments.push({ date: todayISO(), author: who ? who.value : "", text: box.value.trim() });
+    if (!state.draft.lastConversationDate) state.draft.lastConversationDate = todayISO();
+    renderEditor();
+    var again = document.getElementById("e_comment");
+    if (again) again.focus();
+  }
+  async function saveSettings() {
+    readSettingsFromDOM();
+    var s = state.modal.draft;
+    s.team = s.team.map(function (m) { return String(m).trim(); }).filter(Boolean);
+    if (!s.team.length) s.team = ["Unassigned"];
+    var ok = await putSettings(s);
+    if (ok) { closeOverlay(); toast("Settings saved."); }
+  }
+  async function clearExamples() {
+    var ex = targetList().filter(function (t) { return t.isExample; });
+    if (!ex.length) return;
+    if (!confirm("Delete the " + ex.length + " example records?")) return;
+    for (var i = 0; i < ex.length; i++) await removeTarget(ex[i].id);
+    toast("Examples removed.");
+  }
+
+  /* ============================ boot ============================ */
+
+  loadPrefs();
+  render();
+  initStore();
+})();
+</script>
