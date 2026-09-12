@@ -241,6 +241,8 @@
   .seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: var(--radius); overflow: hidden; }
   .seg button { appearance: none; background: var(--surface); border: 0; padding: 7px 14px; cursor: pointer; font-size: 13px; color: var(--ink-2); }
   .seg button[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); font-weight: 600; }
+  .preview { margin-top: 14px; border: 1px solid var(--line); border-left: 3px solid var(--line-strong); border-radius: var(--radius); background: var(--surface-2); padding: 12px 14px; }
+  .preview .kv { padding: 5px 0; }
   .log { display: flex; flex-direction: column; gap: 10px; }
   .log-item { border-left: 2px solid var(--line-strong); padding: 2px 0 2px 10px; }
   .log-item .meta { font-size: 11.5px; color: var(--muted); font-family: var(--mono); }
@@ -251,7 +253,7 @@
   @media (max-width: 960px) { .raise-grid { grid-template-columns: 1fr; } }
   .panel { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); }
   .panel-pad { padding: 18px; }
-  .sticky { position: sticky; top: 78px; }
+  .sticky { position: sticky; top: 78px; max-height: calc(100vh - 96px); overflow-y: auto; }
   .meter { height: 30px; border-radius: 4px; background: var(--surface-3); border: 1px solid var(--line); overflow: hidden; display: flex; position: relative; }
   .meter .fill { background: var(--ink); height: 100%; }
   .meter .over { background: var(--good); height: 100%; }
@@ -381,7 +383,8 @@
     ],
     fx: { GBP: 1, EUR: 1.17, USD: 1.27 },
     fxAsAt: "",
-    coldDays: 21
+    coldDays: 21,
+    interestCompounds: true
   };
 
   var CURRENCIES = ["GBP", "EUR", "USD"];
@@ -494,6 +497,72 @@
     toast._t = setTimeout(function () { el.innerHTML = ""; }, 2600);
   }
 
+  /* ---- conversion and dilution ----
+     No share count is needed. The headline deal fixes a pre-money
+     valuation; every cheque, converted or not, buys equity against it.
+     A note buys more than its face value because interest accrues, and
+     more again if it converts at a discount or under a cap. */
+
+  function rateOf(t) {
+    if (t.interestRate != null) return t.interestRate;
+    if (t.pik != null) return t.pik;          /* records written before the rates merged */
+    if (t.cashRate != null) return t.cashRate;
+    return null;
+  }
+  function accrete(amountGBP, ratePct, months) {
+    if (amountGBP == null) return null;
+    var r = (num(ratePct) || 0) / 100;
+    var yrs = (num(months) || 0) / 12;
+    if (r <= 0 || yrs <= 0) return amountGBP;
+    return state.settings.interestCompounds === false
+      ? amountGBP * (1 + r * yrs)
+      : amountGBP * Math.pow(1 + r, yrs);
+  }
+  function roundBasis(scen) {
+    var raise = num(scen && scen.target) || 0;
+    var eq = num(scen && scen.equityPct) || 0;
+    if (raise <= 0 || eq <= 0 || eq >= 100) return null;
+    var post = raise / (eq / 100);
+    return { raise: raise, equityPct: eq, post: post, pre: post - raise };
+  }
+  /* What one target actually buys, expressed as money at the round price. */
+  function conversion(t, basis) {
+    var face = toGBP(t.amount, t.currency);
+    var out = { face: face, accreted: face, effective: face, priceFactor: 1, why: "" };
+    if (t.instrument !== "note") return out;
+    out.accreted = accrete(face, rateOf(t), t.months);
+    var factor = 1, why = [];
+    var d = num(t.discount), cap = num(t.valuationCap);
+    if (d && d > 0 && d < 100) { factor = Math.min(factor, 1 - d / 100); why.push(d + "% discount"); }
+    if (basis && cap && cap > 0 && basis.pre > 0) {
+      var capFactor = cap / basis.pre;
+      if (capFactor < factor) { factor = capFactor; why = ["capped at " + money(cap, "GBP")]; }
+    }
+    if (!(factor > 0)) factor = 1;
+    out.priceFactor = factor;
+    out.effective = out.accreted / factor;
+    out.why = why.join(", ");
+    return out;
+  }
+  /* Dilution across a set of targets against one round basis. */
+  function dilution(list, basis) {
+    if (!basis) return null;
+    var faceTotal = 0, effTotal = 0, rows = [];
+    list.forEach(function (t) {
+      var c = conversion(t, basis);
+      faceTotal += c.face; effTotal += c.effective;
+      rows.push({ t: t, c: c });
+    });
+    var actual = effTotal > 0 ? effTotal / (basis.pre + effTotal) : 0;
+    var headline = faceTotal > 0 ? faceTotal / (basis.pre + faceTotal) : 0;
+    rows.forEach(function (r) {
+      r.own = effTotal > 0 ? r.c.effective / (basis.pre + effTotal) : 0;
+      r.ownIfEquity = faceTotal > 0 ? r.c.face / (basis.pre + faceTotal) : 0;
+    });
+    return { faceTotal: faceTotal, effTotal: effTotal, actual: actual, headline: headline, excess: actual - headline, rows: rows };
+  }
+  function pct(x, dp) { return (x * 100).toFixed(dp == null ? 2 : dp) + "%"; }
+
   function blankTarget() {
     return {
       name: "", contact: "", relationship: "",
@@ -501,7 +570,7 @@
       owner: state.settings.team[0] || "",
       amount: null, currency: "GBP",
       instrument: "equity",
-      pik: null, cashRate: null, months: null, noteTerms: "",
+      interestRate: null, months: null, discount: null, valuationCap: null, noteTerms: "",
       firstConversationDate: "", lastConversationDate: "", targetCloseDate: "",
       nextSteps: "", notes: "", comments: [],
       createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
@@ -544,6 +613,7 @@
     if (s.fx && typeof s.fx === "object") out.fx = { GBP: 1, EUR: num(s.fx.EUR) || DEFAULT_SETTINGS.fx.EUR, USD: num(s.fx.USD) || DEFAULT_SETTINGS.fx.USD };
     if (typeof s.fxAsAt === "string") out.fxAsAt = s.fxAsAt;
     if (num(s.coldDays)) out.coldDays = num(s.coldDays);
+    if (typeof s.interestCompounds === "boolean") out.interestCompounds = s.interestCompounds;
     return out;
   }
 
@@ -659,7 +729,7 @@
       var s = clone(state.scenarios[k]); s.id = k; out.push(s);
     }
     out.sort(function (a, b) { return String(a.name || "").localeCompare(String(b.name || "")); });
-    if (!out.length) out.push({ id: "base", name: "Base case", target: null, selected: [], virtual: true });
+    if (!out.length) out.push({ id: "base", name: "Base case", target: null, equityPct: null, selected: [], virtual: true });
     return out;
   }
   function activeScenario() {
@@ -673,6 +743,7 @@
     var body = {
       name: patch.name !== undefined ? patch.name : (s.name || "Base case"),
       target: patch.target !== undefined ? patch.target : (s.target == null ? null : s.target),
+      equityPct: patch.equityPct !== undefined ? patch.equityPct : (s.equityPct == null ? null : s.equityPct),
       selected: patch.selected !== undefined ? patch.selected : (s.selected || []).slice()
     };
     return putScenario(s.id, body);
@@ -805,9 +876,11 @@
 
   function noteSummary(t) {
     var bits = [];
-    if (t.pik != null) bits.push(t.pik + "% PIK");
-    if (t.cashRate != null) bits.push(t.cashRate + "% cash");
+    var r = rateOf(t);
+    if (r != null) bits.push(r + "%");
     if (t.months != null) bits.push(t.months + "m");
+    if (num(t.discount)) bits.push(t.discount + "% disc");
+    if (num(t.valuationCap)) bits.push("cap " + money(t.valuationCap, "GBP"));
     return bits.join(" · ");
   }
   function fxStrip(compact) {
@@ -848,8 +921,10 @@
     var chosen = all.filter(function (t) { return selected.indexOf(t.id) !== -1; });
     var totalGBP = chosen.reduce(function (a, t) { return a + toGBP(t.amount, t.currency); }, 0);
     var target = num(scen.target) || 0;
-    var pct = target > 0 ? (totalGBP / target) * 100 : 0;
+    var progress = target > 0 ? (totalGBP / target) * 100 : 0;
     var gap = target - totalGBP;
+    var basis = roundBasis(scen);
+    var dil = dilution(chosen, basis);
 
     var byCur = {};
     chosen.forEach(function (t) {
@@ -858,7 +933,7 @@
     });
 
     var h = '<div class="page-head"><div><h1>Raise builder</h1>' +
-      '<p>Set the amount to be raised, then switch targets in and out to see which combinations get there. Totals are gross indicative commitments converted to sterling.</p></div></div>';
+      '<p>Set the amount to be raised and the equity offered for it, then switch targets in and out to see which combinations get there and what each one costs in equity. Totals are gross indicative commitments converted to sterling. A convertible note takes more than its face value: interest accrues to conversion, and a discount or cap prices it below the round.</p></div></div>';
 
     h += '<div class="scenario-bar">';
     scens.forEach(function (s) {
@@ -874,16 +949,24 @@
 
     /* left: the meter */
     h += '<div class="panel sticky"><div class="panel-pad">' +
+      '<div class="grid2">' +
       '<div class="field"><label for="raiseTarget">Target raise (GBP)</label>' +
       '<input id="raiseTarget" type="number" min="0" step="50000" placeholder="e.g. 5000000" value="' + (scen.target == null ? "" : esc(scen.target)) + '"></div>' +
+      '<div class="field"><label for="raiseEquity">Equity offered (%)</label>' +
+      '<input id="raiseEquity" type="number" min="0.01" max="99" step="0.5" placeholder="e.g. 20" value="' + (scen.equityPct == null ? "" : esc(scen.equityPct)) + '"></div>' +
+      "</div>" +
+      (basis
+        ? '<p class="hint" style="margin:8px 0 0">Implies a pre-money of <strong class="num">' + money(basis.pre, "GBP") +
+          '</strong> and a post-money of <strong class="num">' + money(basis.post, "GBP") + "</strong>.</p>"
+        : '<p class="hint" style="margin:8px 0 0">Enter both to price the round and see what the selection costs in equity.</p>') +
       '<div style="margin-top:18px"><div class="lbl">Selected</div>' +
       '<div class="big-num" style="color:' + (target > 0 && totalGBP >= target ? "var(--good)" : "var(--ink)") + '">' + money(totalGBP, "GBP") + "</div>" +
-      '<div class="hint">' + chosen.length + " of " + pool.length + " targets" + (target > 0 ? " · " + pct.toFixed(0) + "% of target" : "") + "</div></div>";
+      '<div class="hint">' + chosen.length + " of " + pool.length + " targets" + (target > 0 ? " · " + progress.toFixed(0) + "% of target" : "") + "</div></div>";
 
     if (target > 0) {
-      var fillPct = Math.max(0, Math.min(100, pct));
-      var overPct = pct > 100 ? Math.min(100, pct - 100) : 0;
-      h += '<div class="meter" style="margin-top:12px" role="img" aria-label="' + pct.toFixed(0) + ' per cent of target">' +
+      var fillPct = Math.max(0, Math.min(100, progress));
+      var overPct = progress > 100 ? Math.min(100, progress - 100) : 0;
+      h += '<div class="meter" style="margin-top:12px" role="img" aria-label="' + progress.toFixed(0) + ' per cent of target">' +
         '<div class="fill" style="width:' + fillPct + '%"></div>' +
         (overPct ? '<div class="over" style="width:' + overPct + '%"></div>' : "") + "</div>" +
         '<div style="margin-top:12px">' +
@@ -892,6 +975,35 @@
         "</div>";
     } else {
       h += '<p class="hint" style="margin-top:12px">Enter a target to see the gap.</p>';
+    }
+
+    h += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:18px">' +
+      '<button class="btn small secondary" data-act="fill" type="button">Fill to target</button>' +
+      '<button class="btn small secondary" data-act="select-all" type="button">Select all</button>' +
+      '<button class="btn small secondary" data-act="select-none" type="button">Clear</button>' +
+      "</div>";
+
+    if (dil && dil.faceTotal > 0) {
+      var notes = dil.rows.filter(function (r) { return r.t.instrument === "note"; });
+      var overOffer = dil.actual - (basis.equityPct / 100);
+      h += '<div style="margin-top:20px;padding-top:16px;border-top:1px solid var(--line)">' +
+        '<div class="lbl">Equity given away</div>' +
+        '<div class="big-num" style="color:' + (overOffer > 0.0001 ? "var(--warn)" : "var(--ink)") + '">' + pct(dil.actual) + "</div>" +
+        '<div class="hint">against ' + pct(basis.equityPct / 100, 1) + " offered for the full " + money(basis.raise, "GBP") + "</div>";
+      h += '<div style="margin-top:12px">' +
+        '<div class="kv"><span>At face value, no interest</span><span>' + pct(dil.headline) + "</span></div>" +
+        '<div class="kv"><span>With the notes converting</span><span>' + pct(dil.actual) + "</span></div>" +
+        '<div class="kv"><span><strong>Extra given away</strong></span><span style="color:' + (dil.excess > 0.0001 ? "var(--warn)" : "var(--muted)") + '"><strong>' +
+        (dil.excess > 0 ? "+" : "") + (dil.excess * 100).toFixed(2) + " pp</strong></span></div>";
+      if (notes.length) {
+        var noteFace = notes.reduce(function (a, r) { return a + r.c.face; }, 0);
+        var noteConv = notes.reduce(function (a, r) { return a + r.c.accreted; }, 0);
+        h += '<div class="kv"><span>Notes at face</span><span>' + money(noteFace, "GBP") + "</span></div>" +
+          '<div class="kv"><span>Notes converting at</span><span>' + money(noteConv, "GBP") + "</span></div>";
+      }
+      h += "</div>";
+      if (!notes.length) h += '<p class="hint" style="margin:8px 0 0">No convertible notes selected, so the notes add nothing to the dilution.</p>';
+      h += "</div>";
     }
 
     if (Object.keys(byCur).length) {
@@ -904,11 +1016,6 @@
 
     h += fxStrip(true);
 
-    h += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:18px">' +
-      '<button class="btn small secondary" data-act="fill" type="button">Fill to target</button>' +
-      '<button class="btn small secondary" data-act="select-all" type="button">Select all</button>' +
-      '<button class="btn small secondary" data-act="select-none" type="button">Clear</button>' +
-      "</div>";
     h += "</div></div>";
 
     /* right: the ledger */
@@ -919,15 +1026,24 @@
     if (!pool.length) {
       h += '<div class="empty">No targets to select yet.</div>';
     } else {
+      var ownById = {};
+      if (dil) dil.rows.forEach(function (r) { ownById[r.t.id] = r; });
       pool.forEach(function (t) {
         var on = selected.indexOf(t.id) !== -1;
+        var r = ownById[t.id];
+        var ownLine = "";
+        if (r) {
+          ownLine = t.instrument === "note"
+            ? '<div class="hint num">converts ' + money(r.c.accreted, "GBP") + " · " + pct(r.own) + "</div>"
+            : '<div class="hint num">' + pct(r.own) + "</div>";
+        }
         h += '<div class="ledger-row' + (on ? " on" : "") + '" data-pick="' + esc(t.id) + '" role="button" tabindex="0" aria-pressed="' + on + '">' +
           '<div><span class="tick"><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M2 6.4 4.7 9 10 3.2"/></svg></span></div>' +
           '<div><div style="font-weight:600">' + esc(t.name || "Untitled") + "</div>" +
           '<div class="hint">' + (t.owner ? esc(t.owner) : "Unassigned") + (t.instrument === "note" ? " · convertible note" : "") + "</div></div>" +
           "<div class='hide-sm'>" + chip(t.stage) + "</div>" +
           "<div class='ra hide-sm'>" + (t.amount == null ? "—" : money(t.amount, t.currency)) + "</div>" +
-          "<div class='ra' style='font-weight:600'>" + (t.amount == null ? "—" : money(toGBP(t.amount, t.currency), "GBP")) + "</div>" +
+          "<div class='ra' style='font-weight:600'>" + (t.amount == null ? "—" : money(toGBP(t.amount, t.currency), "GBP")) + ownLine + "</div>" +
           "</div>";
       });
     }
@@ -1064,6 +1180,9 @@
     state.editing = id;
     state.draft = id === "new" ? blankTarget() : clone(state.targets[id] || blankTarget());
     if (!Array.isArray(state.draft.comments)) state.draft.comments = [];
+    if (state.draft.interestRate == null) state.draft.interestRate = rateOf(state.draft);
+    delete state.draft.pik;
+    delete state.draft.cashRate;
     renderEditor();
   }
   function closeOverlay() {
@@ -1114,12 +1233,16 @@
       "</div>";
 
     if (d.instrument === "note") {
-      h += '<div class="grid3" style="margin-top:12px">' +
-        f("e_pik", "PIK rate %", '<input id="e_pik" type="number" step="0.25" data-k="pik" value="' + (d.pik == null ? "" : esc(d.pik)) + '" placeholder="e.g. 8">') +
-        f("e_cash", "Cash rate %", '<input id="e_cash" type="number" step="0.25" data-k="cashRate" value="' + (d.cashRate == null ? "" : esc(d.cashRate)) + '" placeholder="e.g. 4">') +
+      h += '<div class="grid2" style="margin-top:12px">' +
+        f("e_rate", "Interest rate %", '<input id="e_rate" type="number" step="0.25" data-k="interestRate" value="' + (d.interestRate == null ? "" : esc(d.interestRate)) + '" placeholder="e.g. 8">') +
         f("e_months", "Months to conversion", '<input id="e_months" type="number" step="1" data-k="months" value="' + (d.months == null ? "" : esc(d.months)) + '" placeholder="e.g. 24">') +
         "</div>" +
-        f("e_terms", "Other note terms", '<textarea id="e_terms" data-k="noteTerms" placeholder="Discount, valuation cap, conversion triggers, security, ranking…" style="min-height:60px">' + esc(d.noteTerms) + "</textarea>");
+        '<div class="grid2" style="margin-top:12px">' +
+        f("e_disc", "Discount % (optional)", '<input id="e_disc" type="number" step="1" min="0" max="99" data-k="discount" value="' + (d.discount == null ? "" : esc(d.discount)) + '" placeholder="none">') +
+        f("e_cap", "Valuation cap, GBP (optional)", '<input id="e_cap" type="number" step="100000" min="0" data-k="valuationCap" value="' + (d.valuationCap == null ? "" : esc(d.valuationCap)) + '" placeholder="none">') +
+        "</div>" +
+        f("e_terms", "Other note terms", '<textarea id="e_terms" data-k="noteTerms" placeholder="Conversion triggers, security, ranking, repayment on a non-qualifying event…" style="min-height:60px">' + esc(d.noteTerms) + "</textarea>") +
+        conversionPreview(d);
     }
     h += "</fieldset>";
 
@@ -1163,6 +1286,30 @@
     if (first && isNew) first.focus();
   }
 
+  function conversionPreview(d) {
+    var basis = roundBasis(activeScenario());
+    if (!basis) {
+      return '<p class="hint" style="margin:14px 0 0">Set a target raise and the equity offered on the Raise builder to see what this note converts into.</p>';
+    }
+    var face = toGBP(d.amount, d.currency);
+    if (!face) return '<p class="hint" style="margin:14px 0 0">Enter an amount to see what this note converts into.</p>';
+    var c = conversion(d, basis);
+    var own = c.effective / (basis.pre + c.effective);
+    var ownIfEquity = c.face / (basis.pre + c.face);
+    var extra = own - ownIfEquity;
+    return '<div class="preview">' +
+      '<div class="lbl">On conversion, against ' + esc(activeScenario().name || "the current scenario") + "</div>" +
+      '<div class="kv"><span>Converts at</span><span>' + money(c.accreted, "GBP") +
+      (c.accreted > c.face ? " <span class=\"muted\">(face " + money(c.face, "GBP") + ")</span>" : "") + "</span></div>" +
+      (c.priceFactor < 1 ? '<div class="kv"><span>Conversion price</span><span>' + pct(c.priceFactor, 0) + " of the round price · " + esc(c.why) + "</span></div>" : "") +
+      '<div class="kv"><span><strong>Equity taken</strong></span><span><strong>' + pct(own) + "</strong></span></div>" +
+      '<div class="kv"><span>The same cheque as equity</span><span>' + pct(ownIfEquity) + "</span></div>" +
+      '<div class="kv"><span>Cost of the note structure</span><span style="color:' + (extra > 0.00005 ? "var(--warn)" : "var(--muted)") + '">' +
+      (extra > 0 ? "+" : "") + (extra * 100).toFixed(2) + " pp</span></div>" +
+      '<p class="hint" style="margin:8px 0 0">Measured on its own against a pre-money of ' + money(basis.pre, "GBP") +
+      ". The Raise builder shows the combined effect of everything selected.</p></div>";
+  }
+
   function f(id, label, control) {
     return '<div class="field"><label for="' + id + '">' + label + "</label>" + control + "</div>";
   }
@@ -1171,7 +1318,7 @@
     var d = state.draft;
     document.querySelectorAll(".sheet [data-k]").forEach(function (el) {
       var k = el.dataset.k;
-      if (k === "amount" || k === "pik" || k === "cashRate" || k === "months") d[k] = num(el.value);
+      if (k === "amount" || k === "interestRate" || k === "months" || k === "discount" || k === "valuationCap") d[k] = num(el.value);
       else d[k] = el.value;
     });
   }
@@ -1219,6 +1366,13 @@
       f("fx_asat", "Rates last updated", '<input id="fx_asat" type="date" value="' + esc(s.fxAsAt) + '">') +
       "</div></fieldset>";
 
+    h += "<fieldset><legend>Convertible notes</legend>" +
+      f("int_compound", "Interest accrues", '<select id="int_compound">' +
+        '<option value="compound"' + (s.interestCompounds === false ? "" : " selected") + ">Compounded annually</option>" +
+        '<option value="simple"' + (s.interestCompounds === false ? " selected" : "") + ">Simple</option></select>") +
+      '<p class="hint" style="margin:8px 0 0">Applies to every note when working out what converts. The round itself is priced per scenario on the Raise builder.</p>' +
+      "</fieldset>";
+
     h += "<fieldset><legend>Going cold</legend>" +
       f("cold_days", "Flag a conversation after this many days of silence", '<input id="cold_days" type="number" step="1" min="1" value="' + esc(s.coldDays) + '">') +
       "</fieldset>";
@@ -1244,6 +1398,8 @@
     s.fxAsAt = (ratesMoved && typedDate === state.settings.fxAsAt) ? todayISO() : typedDate;
     var cd = num(document.getElementById("cold_days").value);
     s.coldDays = cd && cd > 0 ? cd : 21;
+    var ic = document.getElementById("int_compound");
+    if (ic) s.interestCompounds = ic.value !== "simple";
   }
 
   /* ============================ export ============================ */
@@ -1254,13 +1410,13 @@
   }
   async function exportCSV() {
     var head = ["Name", "Contact", "Relationship", "Stage", "Responsible", "Amount", "Currency", "Amount GBP",
-      "Instrument", "PIK %", "Cash rate %", "Months to conversion", "Note terms",
+      "Instrument", "Interest %", "Months to conversion", "Discount %", "Valuation cap GBP", "Note terms",
       "First conversation", "Last conversation", "Targeting close", "Next steps", "Other details"];
     var lines = [head.map(csvCell).join(",")];
     sorted(targetList()).forEach(function (t) {
       lines.push([t.name, t.contact, t.relationship, stageById(t.stage).name, t.owner,
         t.amount, t.currency, t.amount == null ? "" : Math.round(toGBP(t.amount, t.currency)),
-        t.instrument === "note" ? "Convertible note" : "Equity", t.pik, t.cashRate, t.months, t.noteTerms,
+        t.instrument === "note" ? "Convertible note" : "Equity", rateOf(t), t.months, t.discount, t.valuationCap, t.noteTerms,
         t.firstConversationDate, t.lastConversationDate, t.targetCloseDate, t.nextSteps, t.notes
       ].map(csvCell).join(","));
     });
@@ -1332,7 +1488,8 @@
   document.getElementById("app").addEventListener("input", function (e) {
     var id = e.target.id;
     if (id === "fq") { state.filter.q = e.target.value; debounceRender(); }
-    else if (id === "raiseTarget") { debounceTarget(e.target.value); }
+    else if (id === "raiseTarget") { debounceScenario("target", e.target.value); }
+    else if (id === "raiseEquity") { debounceScenario("equityPct", e.target.value); }
   });
   document.getElementById("app").addEventListener("change", function (e) {
     var id = e.target.id;
@@ -1353,9 +1510,13 @@
     }, 220);
   }
   var tt = null;
-  function debounceTarget(v) {
+  function debounceScenario(key, v) {
     clearTimeout(tt);
-    tt = setTimeout(function () { saveActiveScenario({ target: num(v) }); }, 500);
+    tt = setTimeout(function () {
+      var patch = {};
+      patch[key] = num(v);
+      saveActiveScenario(patch);
+    }, 500);
   }
 
   document.getElementById("overlay").addEventListener("click", function (e) {
@@ -1444,7 +1605,8 @@
     var name = prompt("Name this scenario", "Scenario " + (scenarioList().length + 1));
     if (!name) return;
     var id = newId("sc_");
-    var ok = await putScenario(id, { name: name, target: activeScenario().target || null, selected: (activeScenario().selected || []).slice() });
+    var from = activeScenario();
+    var ok = await putScenario(id, { name: name, target: from.target || null, equityPct: from.equityPct || null, selected: (from.selected || []).slice() });
     if (ok) { state.activeScenario = id; savePrefs(); render(); }
   }
   async function deleteScenario() {
