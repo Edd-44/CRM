@@ -159,6 +159,19 @@
 
   /* ---------- toolbar ---------- */
   .toolbar { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-bottom: 12px; }
+  .fxstrip {
+    display: flex; align-items: center; gap: 10px 18px; flex-wrap: wrap;
+    border: 1px solid var(--line); border-left: 3px solid var(--line-strong);
+    background: var(--surface); border-radius: var(--radius);
+    padding: 9px 14px; margin-bottom: 16px; font-size: 12.5px;
+  }
+  .fxstrip .ttl { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+  .fxstrip .rate { font-family: var(--mono); font-variant-numeric: tabular-nums; font-weight: 500; }
+  .fxstrip .stamp { color: var(--muted); }
+  .fxstrip.stale { border-left-color: var(--warn); }
+  .fxstrip.stale .stamp { color: var(--warn); font-weight: 600; }
+  .fxstrip .pushright { margin-left: auto; }
+  .fxstrip.compact { margin: 16px 0 0; padding: 9px 12px; font-size: 12px; }
   .field { display: flex; flex-direction: column; gap: 5px; }
   .field > label, .lbl { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
   input[type="text"], input[type="search"], input[type="date"], input[type="number"], select, textarea {
@@ -751,6 +764,8 @@
       '<div class="field"><label>&nbsp;</label><button class="btn secondary" data-act="export" type="button">Export CSV</button></div>' +
       "</div>";
 
+    h += fxStrip(false);
+
     if (!rows.length) {
       h += '<div class="table-shell"><div class="empty">' +
         (all.length ? "No targets match those filters." : "No targets yet. Add the first fundraising conversation to get started.") +
@@ -794,6 +809,22 @@
     if (t.cashRate != null) bits.push(t.cashRate + "% cash");
     if (t.months != null) bits.push(t.months + "m");
     return bits.join(" · ");
+  }
+  function fxStrip(compact) {
+    var st = state.settings;
+    var stampISO = st.fxAsAt;
+    var age = daysSince(stampISO);
+    var stale = stampISO ? (age != null && age > 30) : true;
+    var stampText = stampISO
+      ? "Last updated " + fmtDate(stampISO) + (age != null && age > 0 ? " · " + age + " day" + (age === 1 ? "" : "s") + " ago" : " · today")
+      : "Never updated";
+    return '<div class="fxstrip' + (compact ? " compact" : "") + (stale ? " stale" : "") + '">' +
+      '<span class="ttl">Exchange rates</span>' +
+      '<span><span class="rate">' + Number(st.fx.EUR).toFixed(4) + '</span> EUR per £1</span>' +
+      '<span><span class="rate">' + Number(st.fx.USD).toFixed(4) + '</span> USD per £1</span>' +
+      '<span class="stamp">' + stampText + "</span>" +
+      '<span class="pushright"><button class="btn small secondary" data-act="open-settings" type="button">Update rates</button></span>' +
+      "</div>";
   }
   function tile(label, value, meta, alert) {
     return '<div class="tile' + (alert ? " alert" : "") + '"><div class="label">' + label + '</div><div class="value">' + value + '</div><div class="meta">' + meta + "</div></div>";
@@ -870,6 +901,8 @@
       });
       h += "</div>";
     }
+
+    h += fxStrip(true);
 
     h += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:18px">' +
       '<button class="btn small secondary" data-act="fill" type="button">Fill to target</button>' +
@@ -1179,11 +1212,11 @@
     h += '</div><button class="btn small secondary" data-act="add-stage" type="button" style="margin-top:8px">+ Add stage</button></fieldset>';
 
     h += "<fieldset><legend>Exchange rates</legend>" +
-      '<p class="hint" style="margin:0 0 10px">Sterling is the base. Enter how many units buy £1. These are entered by hand — update them when they move.</p>' +
+      '<p class="hint" style="margin:0 0 10px">Sterling is the base. Enter how many units buy £1. Rates are point in time and entered by hand — change a rate and the date below stamps itself to today unless you set it yourself. Every page shows the date and flags it once the rates are more than 30 days old.</p>' +
       '<div class="grid3">' +
       f("fx_eur", "EUR per £1", '<input id="fx_eur" type="number" step="0.0001" value="' + esc(s.fx.EUR) + '">') +
       f("fx_usd", "USD per £1", '<input id="fx_usd" type="number" step="0.0001" value="' + esc(s.fx.USD) + '">') +
-      f("fx_asat", "Rates as at", '<input id="fx_asat" type="date" value="' + esc(s.fxAsAt) + '">') +
+      f("fx_asat", "Rates last updated", '<input id="fx_asat" type="date" value="' + esc(s.fxAsAt) + '">') +
       "</div></fieldset>";
 
     h += "<fieldset><legend>Going cold</legend>" +
@@ -1204,8 +1237,11 @@
     document.querySelectorAll("[data-stage]").forEach(function (el) { s.stages[+el.dataset.stage].name = el.value; });
     var eur = num(document.getElementById("fx_eur").value);
     var usd = num(document.getElementById("fx_usd").value);
-    s.fx = { GBP: 1, EUR: eur && eur > 0 ? eur : state.settings.fx.EUR, USD: usd && usd > 0 ? usd : state.settings.fx.USD };
-    s.fxAsAt = document.getElementById("fx_asat").value;
+    var prevFx = state.settings.fx;
+    s.fx = { GBP: 1, EUR: eur && eur > 0 ? eur : prevFx.EUR, USD: usd && usd > 0 ? usd : prevFx.USD };
+    var typedDate = document.getElementById("fx_asat").value;
+    var ratesMoved = s.fx.EUR !== prevFx.EUR || s.fx.USD !== prevFx.USD;
+    s.fxAsAt = (ratesMoved && typedDate === state.settings.fxAsAt) ? todayISO() : typedDate;
     var cd = num(document.getElementById("cold_days").value);
     s.coldDays = cd && cd > 0 ? cd : 21;
   }
@@ -1265,6 +1301,7 @@
       var a = act.dataset.act;
       if (a === "new") { openEditor("new"); return; }
       if (a === "export") { exportCSV(); return; }
+      if (a === "open-settings") { openSettings(); return; }
       if (a === "clear-examples") { clearExamples(); return; }
       if (a === "new-scenario") { newScenario(); return; }
       if (a === "del-scenario") { deleteScenario(); return; }
