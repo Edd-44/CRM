@@ -536,19 +536,28 @@
     var out = { face: face, accreted: face, effective: face, priceFactor: 1, why: "" };
     if (t.instrument !== "note") return out;
     out.accreted = accrete(face, rateOf(t), t.months);
-    var d = num(t.discount), cap = num(t.valuationCap);
+    var d = num(t.discount);
     var discountFactor = (d && d > 0 && d < 100) ? 1 - d / 100 : 1;
     var factor = discountFactor, why = [];
     if (discountFactor < 1) why.push(d + "% discount");
 
-    out.cap = cap && cap > 0 ? cap : null;
+    /* The cap is held as a multiple of the round's implied pre-money, so it
+       is repriced whenever the target raise or the equity offered changes.
+       Older records that hold a fixed figure still work. */
+    var mult = num(t.capMultiple);
+    var fixedCap = num(t.valuationCap);
+    out.capMultiple = mult && mult > 0 ? mult : null;
+    out.cap = null;
+    out.capFactor = null;
+    if (out.capMultiple != null && basis) {
+      out.cap = out.capMultiple * basis.pre;
+      out.capFactor = out.capMultiple;
+    } else if (out.capMultiple == null && fixedCap && fixedCap > 0) {
+      out.cap = fixedCap;
+      out.capFactor = (basis && basis.pre > 0) ? fixedCap / basis.pre : null;
+    }
     out.discountFactor = discountFactor;
-    /* The cap only bites once the pre-money passes cap / (1 - discount).
-       That trigger point is fixed by the note; what moves is the round. */
-    out.capTriggerPre = out.cap != null ? out.cap / discountFactor : null;
-    out.capFactor = (basis && out.cap != null && basis.pre > 0) ? out.cap / basis.pre : null;
     out.capBinds = out.capFactor != null && out.capFactor < discountFactor;
-    out.capHeadroom = (out.capTriggerPre != null && basis) ? out.capTriggerPre - basis.pre : null;
 
     if (out.capBinds) { factor = out.capFactor; why = ["capped at " + money(out.cap, "GBP") + " pre-money"]; }
     if (!(factor > 0)) factor = 1;
@@ -594,7 +603,7 @@
       owner: state.settings.team[0] || "",
       amount: null, currency: "GBP",
       instrument: "equity",
-      interestRate: null, months: null, discount: null, valuationCap: null, noteTerms: "",
+      interestRate: null, months: null, discount: null, capMultiple: null, noteTerms: "",
       firstConversationDate: "", lastConversationDate: "", targetCloseDate: "",
       nextSteps: "", notes: "", comments: [],
       createdAt: new Date().toISOString(), updatedAt: new Date().toISOString()
@@ -904,7 +913,8 @@
     if (r != null) bits.push(r + "%");
     if (t.months != null) bits.push(t.months + "m");
     if (num(t.discount)) bits.push(t.discount + "% disc");
-    if (num(t.valuationCap)) bits.push("cap " + money(t.valuationCap, "GBP"));
+    if (num(t.capMultiple)) bits.push("cap " + t.capMultiple + "×");
+    else if (num(t.valuationCap)) bits.push("cap " + money(t.valuationCap, "GBP"));
     return bits.join(" · ");
   }
   function fxStrip(compact) {
@@ -1028,15 +1038,14 @@
       if (notes.length) {
         var capped = notes.filter(function (r) { return r.c.capBinds; });
         var uncapped = notes.filter(function (r) { return r.c.cap != null && !r.c.capBinds; });
-        var nextCap = null;
-        uncapped.forEach(function (r) { if (nextCap == null || r.c.capTriggerPre < nextCap) nextCap = r.c.capTriggerPre; });
         if (capped.length) {
           h += '<div class="capnote on"><strong>' + capped.length + " of " + notes.length + " note" + (notes.length === 1 ? "" : "s") +
-            " convert" + (capped.length === 1 ? "s" : "") + " at the cap</strong> at a pre-money of " + money(basis.pre, "GBP") +
-            ". Repricing the round no longer changes what " + (capped.length === 1 ? "it takes" : "they take") + ".</div>";
-        } else if (nextCap != null) {
-          h += '<div class="capnote"><strong>No cap is binding</strong> at ' + money(basis.pre, "GBP") +
-            " pre-money. The first takes over above " + money(nextCap, "GBP") + ".</div>";
+            " convert" + (capped.length === 1 ? "s" : "") + " at the cap.</strong> The caps reprice with the round, so at " +
+            money(basis.pre, "GBP") + " pre-money " + (capped.length === 1 ? "it sits" : "they sit") + " at " +
+            capped.map(function (r) { return money(r.c.cap, "GBP"); }).join(", ") + ".</div>";
+        } else if (uncapped.length) {
+          h += '<div class="capnote"><strong>No cap is binding.</strong> Each cap is a multiple of the round, so it moves with the ' +
+            "valuation: the discount prices lower at every level.</div>";
         }
         h += '<div style="margin-top:10px">' +
           '<div class="kv"><span>Interest accrued to conversion</span><span>' + money(dil.accruedInterest, "GBP") + "</span></div>" +
@@ -1230,6 +1239,11 @@
     if (state.draft.interestRate == null) state.draft.interestRate = rateOf(state.draft);
     delete state.draft.pik;
     delete state.draft.cashRate;
+    if (state.draft.capMultiple == null && num(state.draft.valuationCap)) {
+      var b = roundBasis(activeScenario());
+      if (b && b.pre > 0) state.draft.capMultiple = Math.round((num(state.draft.valuationCap) / b.pre) * 100) / 100;
+    }
+    delete state.draft.valuationCap;
     renderEditor();
   }
   function closeOverlay() {
@@ -1286,10 +1300,11 @@
         "</div>" +
         '<div class="grid2" style="margin-top:12px">' +
         f("e_disc", "Discount % (optional)", '<input id="e_disc" type="number" step="1" min="0" max="99" data-k="discount" value="' + (d.discount == null ? "" : esc(d.discount)) + '" placeholder="none">') +
-        f("e_cap", "Pre-money valuation cap, GBP (optional)", '<input id="e_cap" type="number" step="100000" min="0" data-k="valuationCap" value="' + (d.valuationCap == null ? "" : esc(d.valuationCap)) + '" placeholder="none">') +
+        f("e_cap", "Valuation cap (× pre-money, optional)", '<input id="e_cap" type="number" step="0.05" min="0" data-k="capMultiple" value="' + (d.capMultiple == null ? "" : esc(d.capMultiple)) + '" placeholder="none">') +
         "</div>" +
+        '<div id="capHint">' + capFieldHint(d) + "</div>" +
         f("e_terms", "Other note terms", '<textarea id="e_terms" data-k="noteTerms" placeholder="Conversion triggers, security, ranking, repayment on a non-qualifying event…" style="min-height:60px">' + esc(d.noteTerms) + "</textarea>") +
-        conversionPreview(d);
+        '<div id="notePreview">' + conversionPreview(d) + "</div>";
     }
     h += "</fieldset>";
 
@@ -1335,17 +1350,25 @@
 
   /* Reads live off the scenario: repricing the round moves the pre-money,
      which is what decides whether a cap is in play. */
+  function capFieldHint(d) {
+    var m = num(d.capMultiple);
+    if (!m || m <= 0) return '<p class="hint" style="margin:6px 0 0">Held as a multiple of the round, so it is repriced whenever the target raise or the equity offered changes.</p>';
+    var basis = roundBasis(activeScenario());
+    return '<p class="hint" style="margin:6px 0 0">' + (basis
+      ? "Currently <strong class=\"num\">" + money(m * basis.pre, "GBP") + "</strong> against a pre-money of " + money(basis.pre, "GBP") + ", and it moves with the round."
+      : "Set the round on the Raise builder to price this cap.") + "</p>";
+  }
+
   function capStatus(c, basis) {
     if (c.cap == null) return "";
-    var line = '<div class="kv"><span>Valuation cap</span><span>' + money(c.cap, "GBP") + " pre-money</span></div>";
+    var line = '<div class="kv"><span>Valuation cap</span><span>' +
+      (c.capMultiple != null ? c.capMultiple + "× pre-money · " : "") + money(c.cap, "GBP") + "</span></div>";
     if (c.capBinds) {
       line += '<div class="kv"><span>Cap</span><span><span class="flag on">Binding</span> ' +
-        '<span class="muted">at ' + money(basis.pre, "GBP") + " pre-money</span></span></div>";
+        '<span class="muted">converts at ' + pct(c.capFactor, 0) + " of the round price</span></span></div>";
     } else {
-      line += '<div class="kv"><span>Cap</span><span><span class="flag off">Not yet binding</span></span></div>' +
-        '<div class="kv"><span>Takes over above</span><span>' + money(c.capTriggerPre, "GBP") + " pre-money" +
-        (c.capHeadroom > 0 ? ' <span class="muted">(' + money(c.capHeadroom, "GBP") + " of headroom)</span>" : "") +
-        "</span></div>";
+      line += '<div class="kv"><span>Cap</span><span><span class="flag off">Not binding</span> ' +
+        '<span class="muted">' + (c.discountFactor < 1 ? "the discount prices lower" : "above the round price") + "</span></span></div>";
     }
     return line;
   }
@@ -1391,7 +1414,7 @@
     var d = state.draft;
     document.querySelectorAll(".sheet [data-k]").forEach(function (el) {
       var k = el.dataset.k;
-      if (k === "amount" || k === "interestRate" || k === "months" || k === "discount" || k === "valuationCap") d[k] = num(el.value);
+      if (k === "amount" || k === "interestRate" || k === "months" || k === "discount" || k === "capMultiple") d[k] = num(el.value);
       else d[k] = el.value;
     });
   }
@@ -1483,13 +1506,13 @@
   }
   async function exportCSV() {
     var head = ["Name", "Contact", "Relationship", "Stage", "Responsible", "Amount", "Currency", "Amount GBP",
-      "Instrument", "Interest %", "Months to conversion", "Discount %", "Valuation cap GBP", "Note terms",
+      "Instrument", "Interest %", "Months to conversion", "Discount %", "Valuation cap (x pre-money)", "Note terms",
       "First conversation", "Last conversation", "Targeting close", "Next steps", "Other details"];
     var lines = [head.map(csvCell).join(",")];
     sorted(targetList()).forEach(function (t) {
       lines.push([t.name, t.contact, t.relationship, stageById(t.stage).name, t.owner,
         t.amount, t.currency, t.amount == null ? "" : Math.round(toGBP(t.amount, t.currency)),
-        t.instrument === "note" ? "Convertible note" : "Equity", rateOf(t), t.months, t.discount, t.valuationCap, t.noteTerms,
+        t.instrument === "note" ? "Convertible note" : "Equity", rateOf(t), t.months, t.discount, t.capMultiple, t.noteTerms,
         t.firstConversationDate, t.lastConversationDate, t.targetCloseDate, t.nextSteps, t.notes
       ].map(csvCell).join(","));
     });
@@ -1637,6 +1660,15 @@
       var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
       renderSettings(); return;
     }
+  });
+
+  document.getElementById("overlay").addEventListener("input", function (e) {
+    if (!state.draft || !e.target.closest(".sheet") || !e.target.dataset || !e.target.dataset.k) return;
+    readDraftFromDOM();
+    var hint = document.getElementById("capHint");
+    if (hint) hint.innerHTML = capFieldHint(state.draft);
+    var prev = document.getElementById("notePreview");
+    if (prev) prev.innerHTML = conversionPreview(state.draft);
   });
 
   document.getElementById("overlay").addEventListener("keydown", function (e) {
