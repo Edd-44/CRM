@@ -23,7 +23,8 @@ The target raise and the equity offered for it price the round: a raise of £6m 
 
 - An equity cheque of `c` takes `c / (pre-money + total converting money)`.
 - A convertible note takes more. Its face value accrues interest to conversion (compounded annually by default, switchable to simple in Settings), and a discount or a valuation cap prices its conversion below the round, so the same cash buys more shares. The conversion price is the lower of the discounted round price and the cap price.
-- The Raise builder reports the equity given away at face value, the equity actually given away once the notes convert, and the difference between the two in percentage points. The headline figure turns amber once it exceeds the equity offered.
+- The Raise builder reports three positions: equity given away at face value, equity given away once interest has accrued, and equity given away once the notes convert at their discount or cap. The headline figure turns amber once it exceeds the equity offered.
+- The gap between those positions is attributed in percentage points, so the cost of the accrued interest is separated from the cost of the discount or cap and the two sum exactly to the total. Interest is also reported in pounds, and as the percentage by which it increases the equity the notes take.
 - Each note record carries the same calculation on its own, against the scenario currently selected on the Raise builder.
 
 Interest is a single rate per note. There is deliberately no split between PIK and cash interest: the model assumes the whole coupon rolls up and converts.

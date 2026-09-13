@@ -547,20 +547,31 @@
   /* Dilution across a set of targets against one round basis. */
   function dilution(list, basis) {
     if (!basis) return null;
-    var faceTotal = 0, effTotal = 0, rows = [];
+    var faceTotal = 0, intTotal = 0, effTotal = 0, rows = [];
     list.forEach(function (t) {
       var c = conversion(t, basis);
-      faceTotal += c.face; effTotal += c.effective;
+      faceTotal += c.face; intTotal += c.accreted; effTotal += c.effective;
       rows.push({ t: t, c: c });
     });
-    var actual = effTotal > 0 ? effTotal / (basis.pre + effTotal) : 0;
     var headline = faceTotal > 0 ? faceTotal / (basis.pre + faceTotal) : 0;
+    var withInterest = intTotal > 0 ? intTotal / (basis.pre + intTotal) : 0;
+    var actual = effTotal > 0 ? effTotal / (basis.pre + effTotal) : 0;
     rows.forEach(function (r) {
       r.own = effTotal > 0 ? r.c.effective / (basis.pre + effTotal) : 0;
       r.ownIfEquity = faceTotal > 0 ? r.c.face / (basis.pre + faceTotal) : 0;
     });
-    return { faceTotal: faceTotal, effTotal: effTotal, actual: actual, headline: headline, excess: actual - headline, rows: rows };
+    return {
+      faceTotal: faceTotal, intTotal: intTotal, effTotal: effTotal,
+      headline: headline, withInterest: withInterest, actual: actual,
+      interestExcess: withInterest - headline,   /* attributable to accrued interest alone */
+      structureExcess: actual - withInterest,    /* attributable to the discount or cap */
+      excess: actual - headline,
+      interestUplift: headline > 0 ? (withInterest / headline) - 1 : 0,
+      accruedInterest: intTotal - faceTotal,
+      rows: rows
+    };
   }
+  function pp(x) { return (x > 0 ? "+" : "") + (x * 100).toFixed(2) + " pp"; }
   function pct(x, dp) { return (x * 100).toFixed(dp == null ? 2 : dp) + "%"; }
 
   function blankTarget() {
@@ -992,17 +1003,27 @@
         '<div class="hint">against ' + pct(basis.equityPct / 100, 1) + " offered for the full " + money(basis.raise, "GBP") + "</div>";
       h += '<div style="margin-top:12px">' +
         '<div class="kv"><span>At face value, no interest</span><span>' + pct(dil.headline) + "</span></div>" +
+        (dil.interestExcess > 0.000001 ? '<div class="kv"><span>With interest accrued</span><span>' + pct(dil.withInterest) + "</span></div>" : "") +
         '<div class="kv"><span>With the notes converting</span><span>' + pct(dil.actual) + "</span></div>" +
-        '<div class="kv"><span><strong>Extra given away</strong></span><span style="color:' + (dil.excess > 0.0001 ? "var(--warn)" : "var(--muted)") + '"><strong>' +
-        (dil.excess > 0 ? "+" : "") + (dil.excess * 100).toFixed(2) + " pp</strong></span></div>";
+        "</div>";
+      h += '<div style="margin-top:10px">' +
+        '<div class="kv"><span><strong>Extra from note interest</strong></span><span style="color:' +
+        (dil.interestExcess > 0.000001 ? "var(--warn)" : "var(--muted)") + '"><strong>' + pp(dil.interestExcess) + "</strong></span></div>" +
+        (dil.structureExcess > 0.000001 ? '<div class="kv"><span>Extra from discount or cap</span><span>' + pp(dil.structureExcess) + "</span></div>" : "") +
+        '<div class="kv"><span>Extra given away in total</span><span>' + pp(dil.excess) + "</span></div>" +
+        "</div>";
       if (notes.length) {
-        var noteFace = notes.reduce(function (a, r) { return a + r.c.face; }, 0);
-        var noteConv = notes.reduce(function (a, r) { return a + r.c.accreted; }, 0);
-        h += '<div class="kv"><span>Notes at face</span><span>' + money(noteFace, "GBP") + "</span></div>" +
-          '<div class="kv"><span>Notes converting at</span><span>' + money(noteConv, "GBP") + "</span></div>";
+        h += '<div style="margin-top:10px">' +
+          '<div class="kv"><span>Interest accrued to conversion</span><span>' + money(dil.accruedInterest, "GBP") + "</span></div>" +
+          '<div class="kv"><span>Notes convert at</span><span>' + money(notes.reduce(function (a, r) { return a + r.c.accreted; }, 0), "GBP") + "</span></div>" +
+          "</div>";
+        if (dil.interestUplift > 0.000001) {
+          h += '<p class="hint" style="margin:8px 0 0">Interest alone takes <strong>' + (dil.interestUplift * 100).toFixed(1) +
+            "%</strong> more equity than the same money at face value.</p>";
+        }
+      } else {
+        h += '<p class="hint" style="margin:8px 0 0">No convertible notes selected, so the notes add nothing to the dilution.</p>';
       }
-      h += "</div>";
-      if (!notes.length) h += '<p class="hint" style="margin:8px 0 0">No convertible notes selected, so the notes add nothing to the dilution.</p>';
       h += "</div>";
     }
 
@@ -1294,20 +1315,28 @@
     var face = toGBP(d.amount, d.currency);
     if (!face) return '<p class="hint" style="margin:14px 0 0">Enter an amount to see what this note converts into.</p>';
     var c = conversion(d, basis);
+    var ownFace = c.face / (basis.pre + c.face);
+    var ownInterest = c.accreted / (basis.pre + c.accreted);
     var own = c.effective / (basis.pre + c.effective);
-    var ownIfEquity = c.face / (basis.pre + c.face);
-    var extra = own - ownIfEquity;
+    var fromInterest = ownInterest - ownFace;
+    var fromStructure = own - ownInterest;
+    var uplift = ownFace > 0 ? (ownInterest / ownFace) - 1 : 0;
     return '<div class="preview">' +
       '<div class="lbl">On conversion, against ' + esc(activeScenario().name || "the current scenario") + "</div>" +
       '<div class="kv"><span>Converts at</span><span>' + money(c.accreted, "GBP") +
       (c.accreted > c.face ? " <span class=\"muted\">(face " + money(c.face, "GBP") + ")</span>" : "") + "</span></div>" +
+      (c.accreted > c.face ? '<div class="kv"><span>Interest accrued</span><span>' + money(c.accreted - c.face, "GBP") + "</span></div>" : "") +
       (c.priceFactor < 1 ? '<div class="kv"><span>Conversion price</span><span>' + pct(c.priceFactor, 0) + " of the round price · " + esc(c.why) + "</span></div>" : "") +
       '<div class="kv"><span><strong>Equity taken</strong></span><span><strong>' + pct(own) + "</strong></span></div>" +
-      '<div class="kv"><span>The same cheque as equity</span><span>' + pct(ownIfEquity) + "</span></div>" +
-      '<div class="kv"><span>Cost of the note structure</span><span style="color:' + (extra > 0.00005 ? "var(--warn)" : "var(--muted)") + '">' +
-      (extra > 0 ? "+" : "") + (extra * 100).toFixed(2) + " pp</span></div>" +
-      '<p class="hint" style="margin:8px 0 0">Measured on its own against a pre-money of ' + money(basis.pre, "GBP") +
-      ". The Raise builder shows the combined effect of everything selected.</p></div>";
+      '<div class="kv"><span>The same cheque as equity</span><span>' + pct(ownFace) + "</span></div>" +
+      '<div class="kv"><span><strong>of which note interest</strong></span><span style="color:' +
+      (fromInterest > 0.00000005 ? "var(--warn)" : "var(--muted)") + '"><strong>' + pp(fromInterest) + "</strong></span></div>" +
+      (fromStructure > 0.00000005 ? '<div class="kv"><span>of which discount or cap</span><span>' + pp(fromStructure) + "</span></div>" : "") +
+      (uplift > 0.000001
+        ? '<p class="hint" style="margin:8px 0 0">Interest alone takes <strong>' + (uplift * 100).toFixed(1) +
+          "%</strong> more equity than this cheque at face value. Measured on its own against a pre-money of " + money(basis.pre, "GBP") + ".</p>"
+        : '<p class="hint" style="margin:8px 0 0">Measured on its own against a pre-money of ' + money(basis.pre, "GBP") + ".</p>") +
+      "</div>";
   }
 
   function f(id, label, control) {
