@@ -241,6 +241,11 @@
   .seg { display: inline-flex; border: 1px solid var(--line-strong); border-radius: var(--radius); overflow: hidden; }
   .seg button { appearance: none; background: var(--surface); border: 0; padding: 7px 14px; cursor: pointer; font-size: 13px; color: var(--ink-2); }
   .seg button[aria-pressed="true"] { background: var(--ink); color: var(--on-ink); font-weight: 600; }
+  .flag { display: inline-block; font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; border-radius: 3px; padding: 1px 6px; white-space: nowrap; }
+  .flag.on { background: color-mix(in srgb, var(--warn) 18%, transparent); color: var(--warn); }
+  .flag.off { background: var(--surface-3); color: var(--muted); }
+  .capnote { margin-top: 12px; padding: 9px 11px; border-radius: var(--radius); background: var(--surface-3); color: var(--ink-2); font-size: 12.5px; line-height: 1.45; }
+  .capnote.on { background: color-mix(in srgb, var(--warn) 13%, transparent); color: var(--ink); }
   .preview { margin-top: 14px; border: 1px solid var(--line); border-left: 3px solid var(--line-strong); border-radius: var(--radius); background: var(--surface-2); padding: 12px 14px; }
   .preview .kv { padding: 5px 0; }
   .log { display: flex; flex-direction: column; gap: 10px; }
@@ -531,13 +536,21 @@
     var out = { face: face, accreted: face, effective: face, priceFactor: 1, why: "" };
     if (t.instrument !== "note") return out;
     out.accreted = accrete(face, rateOf(t), t.months);
-    var factor = 1, why = [];
     var d = num(t.discount), cap = num(t.valuationCap);
-    if (d && d > 0 && d < 100) { factor = Math.min(factor, 1 - d / 100); why.push(d + "% discount"); }
-    if (basis && cap && cap > 0 && basis.pre > 0) {
-      var capFactor = cap / basis.pre;
-      if (capFactor < factor) { factor = capFactor; why = ["capped at " + money(cap, "GBP")]; }
-    }
+    var discountFactor = (d && d > 0 && d < 100) ? 1 - d / 100 : 1;
+    var factor = discountFactor, why = [];
+    if (discountFactor < 1) why.push(d + "% discount");
+
+    out.cap = cap && cap > 0 ? cap : null;
+    out.discountFactor = discountFactor;
+    /* The cap only bites once the pre-money passes cap / (1 - discount).
+       That trigger point is fixed by the note; what moves is the round. */
+    out.capTriggerPre = out.cap != null ? out.cap / discountFactor : null;
+    out.capFactor = (basis && out.cap != null && basis.pre > 0) ? out.cap / basis.pre : null;
+    out.capBinds = out.capFactor != null && out.capFactor < discountFactor;
+    out.capHeadroom = (out.capTriggerPre != null && basis) ? out.capTriggerPre - basis.pre : null;
+
+    if (out.capBinds) { factor = out.capFactor; why = ["capped at " + money(out.cap, "GBP") + " pre-money"]; }
     if (!(factor > 0)) factor = 1;
     out.priceFactor = factor;
     out.effective = out.accreted / factor;
@@ -1013,6 +1026,18 @@
         '<div class="kv"><span>Extra given away in total</span><span>' + pp(dil.excess) + "</span></div>" +
         "</div>";
       if (notes.length) {
+        var capped = notes.filter(function (r) { return r.c.capBinds; });
+        var uncapped = notes.filter(function (r) { return r.c.cap != null && !r.c.capBinds; });
+        var nextCap = null;
+        uncapped.forEach(function (r) { if (nextCap == null || r.c.capTriggerPre < nextCap) nextCap = r.c.capTriggerPre; });
+        if (capped.length) {
+          h += '<div class="capnote on"><strong>' + capped.length + " of " + notes.length + " note" + (notes.length === 1 ? "" : "s") +
+            " convert" + (capped.length === 1 ? "s" : "") + " at the cap</strong> at a pre-money of " + money(basis.pre, "GBP") +
+            ". Repricing the round no longer changes what " + (capped.length === 1 ? "it takes" : "they take") + ".</div>";
+        } else if (nextCap != null) {
+          h += '<div class="capnote"><strong>No cap is binding</strong> at ' + money(basis.pre, "GBP") +
+            " pre-money. The first takes over above " + money(nextCap, "GBP") + ".</div>";
+        }
         h += '<div style="margin-top:10px">' +
           '<div class="kv"><span>Interest accrued to conversion</span><span>' + money(dil.accruedInterest, "GBP") + "</span></div>" +
           '<div class="kv"><span>Notes convert at</span><span>' + money(notes.reduce(function (a, r) { return a + r.c.accreted; }, 0), "GBP") + "</span></div>" +
@@ -1055,7 +1080,8 @@
         var ownLine = "";
         if (r) {
           ownLine = t.instrument === "note"
-            ? '<div class="hint num">converts ' + money(r.c.accreted, "GBP") + " · " + pct(r.own) + "</div>"
+            ? '<div class="hint num">converts ' + money(r.c.accreted, "GBP") + " · " + pct(r.own) +
+              (r.c.capBinds ? ' <span class="flag on">at cap</span>' : "") + "</div>"
             : '<div class="hint num">' + pct(r.own) + "</div>";
         }
         h += '<div class="ledger-row' + (on ? " on" : "") + '" data-pick="' + esc(t.id) + '" role="button" tabindex="0" aria-pressed="' + on + '">' +
@@ -1260,7 +1286,7 @@
         "</div>" +
         '<div class="grid2" style="margin-top:12px">' +
         f("e_disc", "Discount % (optional)", '<input id="e_disc" type="number" step="1" min="0" max="99" data-k="discount" value="' + (d.discount == null ? "" : esc(d.discount)) + '" placeholder="none">') +
-        f("e_cap", "Valuation cap, GBP (optional)", '<input id="e_cap" type="number" step="100000" min="0" data-k="valuationCap" value="' + (d.valuationCap == null ? "" : esc(d.valuationCap)) + '" placeholder="none">') +
+        f("e_cap", "Pre-money valuation cap, GBP (optional)", '<input id="e_cap" type="number" step="100000" min="0" data-k="valuationCap" value="' + (d.valuationCap == null ? "" : esc(d.valuationCap)) + '" placeholder="none">') +
         "</div>" +
         f("e_terms", "Other note terms", '<textarea id="e_terms" data-k="noteTerms" placeholder="Conversion triggers, security, ranking, repayment on a non-qualifying event…" style="min-height:60px">' + esc(d.noteTerms) + "</textarea>") +
         conversionPreview(d);
@@ -1307,6 +1333,23 @@
     if (first && isNew) first.focus();
   }
 
+  /* Reads live off the scenario: repricing the round moves the pre-money,
+     which is what decides whether a cap is in play. */
+  function capStatus(c, basis) {
+    if (c.cap == null) return "";
+    var line = '<div class="kv"><span>Valuation cap</span><span>' + money(c.cap, "GBP") + " pre-money</span></div>";
+    if (c.capBinds) {
+      line += '<div class="kv"><span>Cap</span><span><span class="flag on">Binding</span> ' +
+        '<span class="muted">at ' + money(basis.pre, "GBP") + " pre-money</span></span></div>";
+    } else {
+      line += '<div class="kv"><span>Cap</span><span><span class="flag off">Not yet binding</span></span></div>' +
+        '<div class="kv"><span>Takes over above</span><span>' + money(c.capTriggerPre, "GBP") + " pre-money" +
+        (c.capHeadroom > 0 ? ' <span class="muted">(' + money(c.capHeadroom, "GBP") + " of headroom)</span>" : "") +
+        "</span></div>";
+    }
+    return line;
+  }
+
   function conversionPreview(d) {
     var basis = roundBasis(activeScenario());
     if (!basis) {
@@ -1327,6 +1370,7 @@
       (c.accreted > c.face ? " <span class=\"muted\">(face " + money(c.face, "GBP") + ")</span>" : "") + "</span></div>" +
       (c.accreted > c.face ? '<div class="kv"><span>Interest accrued</span><span>' + money(c.accreted - c.face, "GBP") + "</span></div>" : "") +
       (c.priceFactor < 1 ? '<div class="kv"><span>Conversion price</span><span>' + pct(c.priceFactor, 0) + " of the round price · " + esc(c.why) + "</span></div>" : "") +
+      capStatus(c, basis) +
       '<div class="kv"><span><strong>Equity taken</strong></span><span><strong>' + pct(own) + "</strong></span></div>" +
       '<div class="kv"><span>The same cheque as equity</span><span>' + pct(ownFace) + "</span></div>" +
       '<div class="kv"><span><strong>of which note interest</strong></span><span style="color:' +
