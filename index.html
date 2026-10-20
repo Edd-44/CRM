@@ -327,6 +327,10 @@
   .list-edit { display: flex; flex-direction: column; gap: 6px; }
   .list-edit .item { display: flex; gap: 8px; align-items: center; }
   .banner { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; background: color-mix(in srgb, var(--warn) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent); border-radius: var(--radius); padding: 10px 14px; margin-bottom: 16px; font-size: 13px; }
+  .dlg-scrim { z-index: 70; }
+  .dlg-wrap { z-index: 71; }
+  .dlg-wrap .modal-box { width: min(460px, 100%); }
+  .dlg-wrap .sheet-body { gap: 12px; }
   .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px; background: var(--ink); color: var(--on-ink); padding: 9px 16px; border-radius: 999px; font-size: 13px; z-index: 90; box-shadow: var(--shadow); }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 </style>
@@ -364,6 +368,7 @@
 
 <main class="wrap" id="app"></main>
 <div id="overlay"></div>
+<div id="dialog"></div>
 <div id="toast"></div>
 
 <script>
@@ -495,6 +500,45 @@
     return '<span class="chip" style="background:' + hexA(s.colour, 0.14) + ';border-color:' + hexA(s.colour, 0.35) + ';color:' + s.colour + '">' +
       '<span class="sq" style="background:' + s.colour + '"></span>' + esc(s.name) + "</span>";
   }
+  /* The published page runs sandboxed, where window.confirm and
+     window.prompt are suppressed and silently answer "no". Everything
+     destructive asks through this instead. */
+  var dialogCb = null;
+  function ask(opts, cb) {
+    dialogCb = cb;
+    var h = '<div class="scrim dlg-scrim" data-dlg="cancel"></div>' +
+      '<div class="modal dlg-wrap"><div class="modal-box" role="dialog" aria-modal="true" aria-label="' + esc(opts.title) + '">' +
+      '<div class="sheet-head"><h2>' + esc(opts.title) + "</h2></div>" +
+      '<div class="sheet-body">' +
+      (opts.body ? '<p style="margin:0">' + esc(opts.body) + "</p>" : "") +
+      (opts.input
+        ? '<div class="field"><label for="dlgInput">' + esc(opts.input.label) + "</label>" +
+          '<input id="dlgInput" type="text" value="' + esc(opts.input.value || "") + '"></div>'
+        : "") +
+      "</div><div class='sheet-foot'>" +
+      '<button class="btn' + (opts.danger ? " danger" : "") + '" data-dlg="ok" type="button">' + esc(opts.confirm || "Confirm") + "</button>" +
+      '<button class="btn secondary" data-dlg="cancel" type="button">Cancel</button>' +
+      "</div></div></div>";
+    document.getElementById("dialog").innerHTML = h;
+    var inp = document.getElementById("dlgInput");
+    if (inp) { inp.focus(); inp.select(); }
+    else {
+      var okBtn = document.querySelector('#dialog [data-dlg="ok"]');
+      if (okBtn) okBtn.focus();
+    }
+  }
+  function closeDialog() {
+    dialogCb = null;
+    document.getElementById("dialog").innerHTML = "";
+  }
+  function resolveDialog() {
+    var inp = document.getElementById("dlgInput");
+    var value = inp ? inp.value : true;
+    var cb = dialogCb;
+    closeDialog();
+    if (cb) cb(value);
+  }
+
   function toast(msg) {
     var el = document.getElementById("toast");
     el.innerHTML = '<div class="toast">' + esc(msg) + "</div>";
@@ -1674,8 +1718,19 @@
   document.getElementById("overlay").addEventListener("keydown", function (e) {
     if (e.key === "Enter" && e.target.id === "e_comment") { e.preventDefault(); addComment(); }
   });
+  document.getElementById("dialog").addEventListener("click", function (e) {
+    var el = e.target.closest("[data-dlg]");
+    if (!el) return;
+    if (el.dataset.dlg === "ok") resolveDialog();
+    else closeDialog();
+  });
+  document.getElementById("dialog").addEventListener("keydown", function (e) {
+    if (e.key === "Enter" && e.target.id === "dlgInput") { e.preventDefault(); resolveDialog(); }
+  });
   document.addEventListener("keydown", function (e) {
-    if (e.key === "Escape" && (state.editing || state.modal)) closeOverlay();
+    if (e.key !== "Escape") return;
+    if (dialogCb) { closeDialog(); return; }
+    if (state.editing || state.modal) closeOverlay();
   });
 
   /* ---------- actions ---------- */
@@ -1706,21 +1761,35 @@
     setSelection(sel);
     if (total < target) toast("Every available target selected and still short of the number.");
   }
-  async function newScenario() {
-    var name = prompt("Name this scenario", "Scenario " + (scenarioList().length + 1));
-    if (!name) return;
-    var id = newId("sc_");
+  function newScenario() {
     var from = activeScenario();
-    var ok = await putScenario(id, { name: name, target: from.target || null, equityPct: from.equityPct || null, selected: (from.selected || []).slice() });
-    if (ok) { state.activeScenario = id; savePrefs(); render(); }
+    ask({
+      title: "New scenario",
+      body: "It starts as a copy of “" + (from.name || "the current scenario") + "”.",
+      input: { label: "Name", value: "Scenario " + (scenarioList().length + 1) },
+      confirm: "Create"
+    }, async function (name) {
+      if (!name || !String(name).trim()) return;
+      var id = newId("sc_");
+      var ok = await putScenario(id, {
+        name: String(name).trim(), target: from.target || null,
+        equityPct: from.equityPct || null, selected: (from.selected || []).slice()
+      });
+      if (ok) { state.activeScenario = id; savePrefs(); render(); }
+    });
   }
-  async function deleteScenario() {
+  function deleteScenario() {
     var s = activeScenario();
     if (s.virtual) return;
-    if (!confirm("Delete the scenario “" + s.name + "”? The targets themselves are not affected.")) return;
-    await removeScenario(s.id);
-    state.activeScenario = "base";
-    savePrefs(); render();
+    ask({
+      title: "Delete scenario",
+      body: "Delete “" + (s.name || "this scenario") + "”? The targets themselves are not affected.",
+      confirm: "Delete scenario", danger: true
+    }, async function () {
+      await removeScenario(s.id);
+      state.activeScenario = "base";
+      savePrefs(); render();
+    });
   }
   async function saveTarget() {
     readDraftFromDOM();
@@ -1731,10 +1800,17 @@
     var ok = await putTarget(id, d);
     if (ok) { closeOverlay(); toast(state.editing === "new" ? "Target added." : "Saved."); }
   }
-  async function deleteTarget() {
-    if (!confirm("Delete “" + (state.draft.name || "this target") + "”? This cannot be undone.")) return;
-    var ok = await removeTarget(state.editing);
-    if (ok) { closeOverlay(); toast("Target deleted."); }
+  function deleteTarget() {
+    var id = state.editing;
+    var name = (state.draft && state.draft.name) || "this target";
+    ask({
+      title: "Delete target",
+      body: "Delete “" + name + "”? This cannot be undone, and everyone sharing the CRM loses the record.",
+      confirm: "Delete target", danger: true
+    }, async function () {
+      var ok = await removeTarget(id);
+      if (ok) { closeOverlay(); toast("Target deleted."); }
+    });
   }
   function addComment() {
     var box = document.getElementById("e_comment");
@@ -1755,12 +1831,17 @@
     var ok = await putSettings(s);
     if (ok) { closeOverlay(); toast("Settings saved."); }
   }
-  async function clearExamples() {
+  function clearExamples() {
     var ex = targetList().filter(function (t) { return t.isExample; });
     if (!ex.length) return;
-    if (!confirm("Delete the " + ex.length + " example records?")) return;
-    for (var i = 0; i < ex.length; i++) await removeTarget(ex[i].id);
-    toast("Examples removed.");
+    ask({
+      title: "Delete example records",
+      body: "Delete all " + ex.length + " example records? Anything you have entered yourself is untouched.",
+      confirm: "Delete examples", danger: true
+    }, async function () {
+      for (var i = 0; i < ex.length; i++) await removeTarget(ex[i].id);
+      toast("Examples removed.");
+    });
   }
 
   /* ============================ boot ============================ */
