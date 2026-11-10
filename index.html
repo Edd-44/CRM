@@ -331,7 +331,12 @@
   .dlg-wrap { z-index: 71; }
   .dlg-wrap .modal-box { width: min(460px, 100%); }
   .dlg-wrap .sheet-body { gap: 12px; }
-  .toast { position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px; background: var(--ink); color: var(--on-ink); padding: 9px 16px; border-radius: 999px; font-size: 13px; z-index: 90; box-shadow: var(--shadow); }
+  .toast {
+    position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px;
+    background: var(--ink); color: var(--on-ink); padding: 11px 18px; border-radius: 10px;
+    font-size: 13px; line-height: 1.45; z-index: 90; box-shadow: var(--shadow);
+    max-width: min(560px, calc(100vw - 32px)); text-align: left;
+  }
   @media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
 </style>
 
@@ -543,7 +548,7 @@
     var el = document.getElementById("toast");
     el.innerHTML = '<div class="toast">' + esc(msg) + "</div>";
     clearTimeout(toast._t);
-    toast._t = setTimeout(function () { el.innerHTML = ""; }, 2600);
+    toast._t = setTimeout(function () { el.innerHTML = ""; }, String(msg).length > 70 ? 9000 : 2600);
   }
 
   /* ---- conversion and dilution ----
@@ -744,6 +749,8 @@
 
   async function putTarget(id, data) {
     data.updatedAt = new Date().toISOString();
+    var big = tooBigMsg(data, "“" + (data.name || "This record") + "”");
+    if (big) { toast(big); return false; }
     if (db) {
       try { await db.doc("targets/" + id).set(data); }
       catch (e) { toast(writeMsg(e)); return false; }
@@ -789,13 +796,30 @@
     }
     return true;
   }
+  var DOC_LIMIT = 256 * 1024;
+  function docSize(data) {
+    try { return new Blob([JSON.stringify(data)]).size; }
+    catch (e) { return JSON.stringify(data).length; }
+  }
+  /* Returns a message when the record is genuinely over the limit, so a
+     size complaint is only ever made when size is actually the problem. */
+  function tooBigMsg(data, label) {
+    var size = docSize(data);
+    if (size <= DOC_LIMIT) return null;
+    var log = Array.isArray(data.comments) ? docSize({ c: data.comments }) : 0;
+    return label + " is " + Math.round(size / 1024) + "KB, over the 256KB limit per record. " +
+      (log > size / 2
+        ? "The conversation log is most of it — move the older entries into the notes or delete them."
+        : "Shorten the notes and next steps, then save again.");
+  }
   function writeMsg(e) {
     var code = e && e.code;
-    if (code === "quota_exceeded") return "The shared database is full. Delete some records and try again.";
+    var detail = e && e.message ? " Reported: " + e.message : "";
+    if (code === "quota_exceeded") return "The shared database is full. Delete some records and try again." + detail;
     if (code === "resource_exhausted") return "Too many changes at once. Wait a moment and try again.";
     if (code === "revoked") return "Your access to this CRM ended. Reload the page.";
-    if (code === "invalid_argument") return "That record could not be saved — it may be too large.";
-    return "Could not save. Check your connection and try again.";
+    if (code === "invalid_argument") return "That change was rejected." + detail;
+    return "Could not save. Check your connection and try again." + detail;
   }
 
   /* ============================ scenarios ============================ */
