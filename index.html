@@ -910,6 +910,7 @@
     var h = "";
     if (all.some(function (t) { return t.isExample; })) {
       h += '<div class="banner"><strong>Example records.</strong> The rows marked “Example” are sample data so the pipeline is not empty. ' +
+        'Open and save one and it becomes a real record that this button will not touch. ' +
         '<button class="btn small secondary" data-act="clear-examples" type="button">Delete all examples</button></div>';
     }
     h += '<div class="page-head"><div><h1>Fundraising targets</h1>' +
@@ -1821,6 +1822,7 @@
     if (!d.name || !d.name.trim()) { toast("Give the target a name."); var n = document.getElementById("e_name"); if (n) n.focus(); return; }
     var id = state.editing === "new" ? newId("t_") : state.editing;
     delete d.id;
+    delete d.isExample;   /* edited by a person: no longer disposable sample data */
     var ok = await putTarget(id, d);
     if (ok) { closeOverlay(); toast(state.editing === "new" ? "Target added." : "Saved."); }
   }
@@ -1858,10 +1860,13 @@
   function clearExamples() {
     var ex = targetList().filter(function (t) { return t.isExample; });
     if (!ex.length) return;
+    var names = ex.map(function (t) { return t.name || "Untitled"; });
     ask({
       title: "Delete example records",
-      body: "Delete all " + ex.length + " example records? Anything you have entered yourself is untouched.",
-      confirm: "Delete examples", danger: true
+      body: "This deletes " + ex.length + " record" + (ex.length === 1 ? "" : "s") + " for good: " +
+        names.slice(0, 6).join("; ") + (names.length > 6 ? "; and " + (names.length - 6) + " more" : "") +
+        ". Records you have opened and saved are not examples any more and are not touched.",
+      confirm: "Delete " + ex.length + " record" + (ex.length === 1 ? "" : "s"), danger: true
     }, async function () {
       for (var i = 0; i < ex.length; i++) await removeTarget(ex[i].id);
       toast("Examples removed.");
