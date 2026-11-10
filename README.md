@@ -21,7 +21,8 @@ Two artifacts holding the same page hold two separate databases. Records entered
 - **Base currency is sterling.** EUR and USD amounts are stored in their own currency and converted for every total. Rates are point in time and entered by hand in Settings ("units per GBP"), because the published page cannot reach an external rates feed. The Targets and Raise builder pages both carry a rates box showing the values in force and the date they were last updated; that date stamps itself to today when a rate is changed, and can be overridden. The box turns amber once the rates are more than 30 days old.
 - **Stages** default to Identified, Contacted, First meeting, Diligence, Term sheet, Committed, Closed, Passed. They are editable in Settings. A stage cannot be deleted while targets still sit in it.
 - **Team members** are maintained in Settings and drive the "Responsible" field.
-- **Going cold** flags any live conversation with no contact for more than a set number of days (21 by default, editable).
+- **Going cold** flags any active conversation with no contact for more than a set number of days (21 by default, editable). Committed, closed and passed targets are not flagged.
+- **The summary tiles are additive.** Active targets covers everything still to win, Committed & closed covers the stages flagged as closed, and Pipeline total is the sum of the two. Passed targets are excluded from all three and counted separately.
 
 ## Dilution model
 

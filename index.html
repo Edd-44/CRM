@@ -155,6 +155,7 @@
   .tile .label { font-size: 10.5px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
   .tile .value { font-family: var(--mono); font-weight: 600; font-size: 22px; letter-spacing: -0.02em; margin-top: 6px; font-variant-numeric: tabular-nums; }
   .tile .meta { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .tile .meta.sub { opacity: .78; }
   .tile.alert .value { color: var(--warn); }
 
   /* ---------- toolbar ---------- */
@@ -968,11 +969,19 @@
   function viewTargets() {
     var all = targetList();
     var rows = sorted(filtered());
-    var live = all.filter(function (t) { return !stageById(t.stage).dead; });
-    var totalGBP = live.reduce(function (a, t) { return a + toGBP(t.amount, t.currency); }, 0);
-    var wonGBP = all.filter(function (t) { return stageById(t.stage).closed; })
-      .reduce(function (a, t) { return a + toGBP(t.amount, t.currency); }, 0);
-    var cold = live.filter(function (t) {
+    /* Active, committed and passed are kept apart so the tiles add up:
+       active + committed and closed = the pipeline total. */
+    function sumGBP(list) { return list.reduce(function (a, t) { return a + toGBP(t.amount, t.currency); }, 0); }
+    var active = all.filter(function (t) { var st = stageById(t.stage); return !st.closed && !st.dead; });
+    var won = all.filter(function (t) { return stageById(t.stage).closed; });
+    var passed = all.filter(function (t) { return stageById(t.stage).dead; });
+    var activeGBP = sumGBP(active);
+    var wonGBP = sumGBP(won);
+    var pipelineGBP = activeGBP + wonGBP;
+    var priced = active.filter(function (t) { return t.amount != null && t.amount !== 0; });
+    var avgGBP = priced.length ? sumGBP(priced) / priced.length : null;
+    var unpriced = active.length - priced.length;
+    var cold = active.filter(function (t) {
       var d = daysSince(t.lastConversationDate);
       return d == null || d > state.settings.coldDays;
     });
@@ -1003,10 +1012,16 @@
       '<div class="spacer"></div><button class="btn" data-act="new" type="button">+ Add target</button></div>';
 
     h += '<div class="tiles">' +
-      tile("In play", money(totalGBP, "GBP"), live.length + " live conversation" + (live.length === 1 ? "" : "s")) +
-      tile("Committed &amp; closed", money(wonGBP, "GBP"), all.filter(function (t) { return stageById(t.stage).closed; }).length + " of " + all.length + " targets") +
-      tile("Average ticket", live.length ? money(totalGBP / live.length, "GBP") : "—", "Across live conversations") +
-      tile("Going cold", String(cold.length), "No contact in " + state.settings.coldDays + "+ days", cold.length > 0) +
+      tile("Active targets", money(activeGBP, "GBP"),
+        active.length + " conversation" + (active.length === 1 ? "" : "s") + (avgGBP ? " · avg " + money(avgGBP, "GBP") : ""),
+        false, unpriced ? unpriced + " with no amount yet" : "") +
+      tile("Committed &amp; closed", money(wonGBP, "GBP"),
+        won.length + " of " + all.length + " target" + (all.length === 1 ? "" : "s")) +
+      tile("Pipeline total", money(pipelineGBP, "GBP"),
+        "Active plus committed" + (pipelineGBP > 0 && wonGBP > 0 ? " · " + Math.round((wonGBP / pipelineGBP) * 100) + "% committed" : ""),
+        false, passed.length ? passed.length + " passed, excluded" : "") +
+      tile("Going cold", String(cold.length), "No contact in " + state.settings.coldDays + "+ days",
+        cold.length > 0, "Active conversations only") +
       "</div>";
 
     h += '<div class="toolbar">' +
@@ -1101,8 +1116,11 @@
       '<span class="pushright"><button class="btn small secondary" data-act="open-settings" type="button">Update rates</button></span>' +
       "</div>";
   }
-  function tile(label, value, meta, alert) {
-    return '<div class="tile' + (alert ? " alert" : "") + '"><div class="label">' + label + '</div><div class="value">' + value + '</div><div class="meta">' + meta + "</div></div>";
+  function tile(label, value, meta, alert, meta2) {
+    return '<div class="tile' + (alert ? " alert" : "") + '"><div class="label">' + label + "</div>" +
+      '<div class="value">' + value + "</div>" +
+      '<div class="meta">' + meta + "</div>" +
+      (meta2 ? '<div class="meta sub">' + meta2 + "</div>" : "") + "</div>";
   }
   function th(key, label, align) {
     var on = state.sort.key === key;
