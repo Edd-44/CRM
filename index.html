@@ -206,6 +206,10 @@
   td.wrapcell { max-width: 260px; white-space: normal; color: var(--ink-2); font-size: 13px; }
   .empty { padding: 48px 24px; text-align: center; color: var(--muted); }
 
+  th.ordcol, td.ordcol { width: 54px; padding-right: 4px; }
+  .ord-btns { display: flex; gap: 3px; }
+  .ord-btns .icon-btn { width: 22px; height: 22px; font-size: 11px; padding: 0; }
+  .ord-btns .icon-btn[disabled] { opacity: .3; cursor: not-allowed; }
   .chip {
     display: inline-flex; align-items: center; gap: 6px; white-space: nowrap;
     padding: 3px 9px 3px 7px; border-radius: 999px; font-size: 12px; font-weight: 600;
@@ -326,6 +330,7 @@
   .modal-box { pointer-events: auto; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; box-shadow: var(--shadow); width: min(680px, 100%); max-height: 86vh; display: flex; flex-direction: column; }
   .list-edit { display: flex; flex-direction: column; gap: 6px; }
   .list-edit .item { display: flex; gap: 8px; align-items: center; }
+  .banner.alarm { background: color-mix(in srgb, var(--bad) 12%, var(--surface)); border-color: color-mix(in srgb, var(--bad) 38%, transparent); }
   .banner { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; background: color-mix(in srgb, var(--warn) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent); border-radius: var(--radius); padding: 10px 14px; margin-bottom: 16px; font-size: 13px; }
   .dlg-scrim { z-index: 70; }
   .dlg-wrap { z-index: 71; }
@@ -422,7 +427,8 @@
     showPassed: false,
     editing: null,
     draft: null,
-    modal: null
+    modal: null,
+    shared: false
   };
 
   var local = { targets: {}, scenarios: {}, settings: null };
@@ -645,6 +651,44 @@
   function pp(x) { return (x > 0 ? "+" : "") + (x * 100).toFixed(2) + " pp"; }
   function pct(x, dp) { return (x * 100).toFixed(dp == null ? 2 : dp) + "%"; }
 
+  function isManual() { return state.sort.key === "manual"; }
+  function filtersOn() {
+    return !!(state.filter.q.trim() || state.filter.stage || state.filter.owner);
+  }
+  /* Manual order needs a number on every record before anything can move.
+     They are seeded from whatever order is on screen when it is switched on. */
+  async function enableManualOrder() {
+    var current = sorted(targetList());
+    var missing = current.some(function (t) { return typeof t.order !== "number"; });
+    state.sort = { key: "manual", dir: "asc" };
+    savePrefs();
+    if (missing) {
+      for (var i = 0; i < current.length; i++) {
+        var t = clone(state.targets[current[i].id]);
+        if (!t) continue;
+        t.order = (i + 1) * 10;
+        await putTarget(current[i].id, t);
+      }
+    }
+    render();
+  }
+  async function moveTarget(id, dir) {
+    var list = sorted(targetList());
+    var i = -1;
+    for (var k = 0; k < list.length; k++) if (list[k].id === id) { i = k; break; }
+    var j = i + dir;
+    if (i < 0 || j < 0 || j >= list.length) return;
+    var a = clone(state.targets[list[i].id]);
+    var b = clone(state.targets[list[j].id]);
+    if (!a || !b) return;
+    var ao = typeof a.order === "number" ? a.order : (i + 1) * 10;
+    var bo = typeof b.order === "number" ? b.order : (j + 1) * 10;
+    if (ao === bo) { bo = ao + dir; }
+    a.order = bo; b.order = ao;
+    await putTarget(list[i].id, a);
+    await putTarget(list[j].id, b);
+  }
+
   function blankTarget() {
     return {
       name: "", contact: "", relationship: "",
@@ -683,6 +727,29 @@
     state.scenarios = local.scenarios;
     if (local.settings) { state.settings = mergeSettings(local.settings); state.settingsExists = true; }
   }
+  function peekLocal() {
+    try {
+      var raw = JSON.parse(localStorage.getItem(LS_KEY) || "null");
+      return raw && raw.targets ? raw.targets : {};
+    } catch (e) { return {}; }
+  }
+  function localStrays() {
+    if (!state.shared) return [];
+    var out = [], loc = peekLocal();
+    for (var k in loc) if (Object.prototype.hasOwnProperty.call(loc, k)) {
+      if (!state.targets[k] && loc[k] && loc[k].name) { var t = clone(loc[k]); t.id = k; out.push(t); }
+    }
+    return out;
+  }
+  async function importLocal() {
+    var strays = localStrays();
+    for (var i = 0; i < strays.length; i++) {
+      var t = clone(strays[i]);
+      delete t.id;
+      await putTarget(strays[i].id, t);
+    }
+    toast(strays.length + " record" + (strays.length === 1 ? "" : "s") + " copied into the shared CRM.");
+  }
   function saveLocal() {
     try { localStorage.setItem(LS_KEY, JSON.stringify(local)); }
     catch (e) { toast("Could not save locally — browser storage is blocked."); }
@@ -713,11 +780,13 @@
     if (!db) {
       loadLocal();
       state.ready = true;
+      state.shared = false;
       setSync("local", "This device only");
       render();
       return;
     }
 
+    state.shared = true;
     setSync("live", "Live · shared");
 
     db.collection("targets").onSnapshot(function (snap) {
@@ -871,6 +940,7 @@
       else if (k === "stage") { av = stageIndex(a.stage); bv = stageIndex(b.stage); }
       else if (k === "last") { av = parseISO(a.lastConversationDate) || 0; bv = parseISO(b.lastConversationDate) || 0; }
       else if (k === "close") { av = parseISO(a.targetCloseDate) || 8.64e15; bv = parseISO(b.targetCloseDate) || 8.64e15; }
+      else if (k === "manual") { av = typeof a.order === "number" ? a.order : 1e12; bv = typeof b.order === "number" ? b.order : 1e12; }
       else { av = String(a[k] || "").toLowerCase(); bv = String(b[k] || "").toLowerCase(); }
       if (av < bv) return -1 * dir;
       if (av > bv) return 1 * dir;
@@ -908,6 +978,21 @@
     });
 
     var h = "";
+    if (!state.shared) {
+      h += '<div class="banner alarm"><strong>These records are saved in this browser only.</strong> ' +
+        "This copy of the page could not reach the shared database, so nothing here is visible to anyone else and it will be lost if the browser data is cleared. " +
+        'Open the CRM from your artifacts list on claude.ai to work in the shared copy. ' +
+        '<button class="btn small secondary" data-act="export" type="button">Export CSV now</button></div>';
+    } else {
+      var strays = localStrays();
+      if (strays.length) {
+        h += '<div class="banner"><strong>' + strays.length + " record" + (strays.length === 1 ? " is" : "s are") +
+          " saved in this browser and not in the shared CRM.</strong> " +
+          (strays.length === 1 ? "It was" : "They were") + " entered while the page could not reach the shared database. " +
+          '<button class="btn small secondary" data-act="import-local" type="button">Copy ' +
+          (strays.length === 1 ? "it" : "them") + " into the shared CRM</button></div>";
+      }
+    }
     if (all.some(function (t) { return t.isExample; })) {
       h += '<div class="banner"><strong>Example records.</strong> The rows marked “Example” are sample data so the pipeline is not empty. ' +
         'Open and save one and it becomes a real record that this button will not touch. ' +
@@ -934,6 +1019,8 @@
       state.settings.team.map(function (m) {
         return '<option value="' + esc(m) + '"' + (state.filter.owner === m ? " selected" : "") + ">" + esc(m) + "</option>";
       }).join("") + "</select></div>" +
+      '<div class="field"><label>&nbsp;</label><button class="btn secondary" data-act="manual-order" aria-pressed="' + isManual() + '" type="button">' +
+      (isManual() ? "Manual order · on" : "Manual order") + "</button></div>" +
       '<div class="field"><label>&nbsp;</label><button class="btn secondary" data-act="export" type="button">Export CSV</button></div>' +
       "</div>";
 
@@ -947,15 +1034,24 @@
     }
 
     h += '<div class="table-shell"><table><thead><tr>' +
+      (isManual() ? '<th class="ordcol" title="Drag-free reordering">Order</th>' : "") +
       th("name", "Target") + th("relationship", "Relationship") + th("stage", "Stage") + th("owner", "Owner") +
       th("amount", "Indicative", "right") + "<th>Instrument</th>" + th("last", "Last spoke") +
       "<th>Next steps</th>" + th("close", "Target close") +
       "</tr></thead><tbody>";
 
-    rows.forEach(function (t) {
+    rows.forEach(function (t, idx) {
       var d = daysSince(t.lastConversationDate);
       var isCold = !stageById(t.stage).dead && (d == null || d > state.settings.coldDays);
       h += '<tr data-id="' + esc(t.id) + '">' +
+        (isManual()
+          ? '<td class="ordcol"><div class="ord-btns">' +
+            '<button class="icon-btn" data-move="' + esc(t.id) + '" data-dir="-1" type="button" aria-label="Move up"' +
+            (filtersOn() || idx === 0 ? " disabled" : "") + ">↑</button>" +
+            '<button class="icon-btn" data-move="' + esc(t.id) + '" data-dir="1" type="button" aria-label="Move down"' +
+            (filtersOn() || idx === rows.length - 1 ? " disabled" : "") + ">↓</button>" +
+            "</div></td>"
+          : "") +
         '<td class="name">' + esc(t.name || "Untitled") + (t.isExample ? ' <span class="tag">Example</span>' : "") +
         (t.contact ? '<div class="sub">' + esc(t.contact) + "</div>" : "") + "</td>" +
         '<td class="wrapcell">' + (t.relationship ? esc(t.relationship) : '<span class="muted">—</span>') + "</td>" +
@@ -973,6 +1069,9 @@
         "</tr>";
     });
     h += "</tbody></table></div>";
+    if (isManual() && filtersOn()) {
+      h += '<p class="hint" style="margin:10px 0 0">Clear the search and filters to move rows: the arrows act on the whole list, so moving while filtered would not land where you expect.</p>';
+    }
     return h;
   }
 
@@ -1542,6 +1641,12 @@
       f("cold_days", "Flag a conversation after this many days of silence", '<input id="cold_days" type="number" step="1" min="1" value="' + esc(s.coldDays) + '">') +
       "</fieldset>";
 
+    h += "<fieldset><legend>Import records</legend>" +
+      '<p class="hint" style="margin:0 0 10px">Paste a CSV with a header row. Columns are matched by name, so a file exported from this CRM imports as it stands; Name or Target is the only one required. Records are added, never overwritten.</p>' +
+      '<textarea id="csvIn" placeholder="Name,Relationship,Stage,Responsible,Amount,Currency,Last conversation&#10;Acme Capital,Broker introduction,Contacted,Adrian,500000,GBP,2026-11-03"></textarea>' +
+      '<button class="btn small secondary" data-act="import-csv" type="button" style="margin-top:8px">Import from CSV</button>' +
+      "</fieldset>";
+
     h += "</div><div class='sheet-foot'>" +
       '<button class="btn" data-act="save-settings" type="button">Save settings</button>' +
       '<button class="btn secondary" data-act="close" type="button">Cancel</button>' +
@@ -1568,6 +1673,117 @@
   }
 
   /* ============================ export ============================ */
+
+  var IMPORT_MAP = {
+    "name": "name", "target": "name",
+    "contact": "contact", "main contact": "contact",
+    "relationship": "relationship",
+    "stage": "stage",
+    "responsible": "owner", "owner": "owner",
+    "amount": "amount", "indicative": "amount",
+    "currency": "currency",
+    "instrument": "instrument",
+    "interest %": "interestRate", "interest": "interestRate", "pik %": "interestRate", "interest rate %": "interestRate",
+    "months to conversion": "months", "months": "months",
+    "discount %": "discount", "discount": "discount",
+    "valuation cap (x pre-money)": "capMultiple", "valuation cap": "capMultiple",
+    "note terms": "noteTerms", "other note terms": "noteTerms",
+    "first conversation": "firstConversationDate",
+    "last conversation": "lastConversationDate", "last spoke": "lastConversationDate",
+    "targeting close": "targetCloseDate", "target close": "targetCloseDate",
+    "next steps": "nextSteps",
+    "other details": "notes", "notes": "notes"
+  };
+  var MONTHS3 = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
+
+  function parseCSV(text) {
+    var rows = [], row = [], cur = "", q = false;
+    text = String(text).replace(/\r\n/g, "\n").replace(/\r/g, "\n");
+    for (var i = 0; i < text.length; i++) {
+      var ch = text.charAt(i);
+      if (q) {
+        if (ch === '"') { if (text.charAt(i + 1) === '"') { cur += '"'; i++; } else q = false; }
+        else cur += ch;
+      } else if (ch === '"') q = true;
+      else if (ch === ",") { row.push(cur); cur = ""; }
+      else if (ch === "\n") { row.push(cur); rows.push(row); row = []; cur = ""; }
+      else cur += ch;
+    }
+    if (cur !== "" || row.length) { row.push(cur); rows.push(row); }
+    return rows.filter(function (r) {
+      return r.some(function (c) { return String(c).trim() !== ""; });
+    });
+  }
+  function parseDateIn(v) {
+    v = String(v == null ? "" : v).trim();
+    if (!v || v === "—") return "";
+    if (/^\d{4}-\d{2}-\d{2}$/.test(v)) return v;
+    var m = v.match(/^(\d{1,2})[\/.](\d{1,2})[\/.](\d{2,4})$/);
+    if (m) return (m[3].length === 2 ? "20" + m[3] : m[3]) + "-" + pad(+m[2]) + "-" + pad(+m[1]);
+    var m2 = v.match(/^(\d{1,2})\s+([A-Za-z]{3})[a-z]*\s+(\d{2,4})$/);
+    if (m2) {
+      var mi = MONTHS3.indexOf(m2[2].toLowerCase());
+      if (mi >= 0) return (m2[3].length === 2 ? "20" + m2[3] : m2[3]) + "-" + pad(mi + 1) + "-" + pad(+m2[1]);
+    }
+    return "";
+  }
+  function stageIdByName(name) {
+    var n = String(name || "").trim().toLowerCase();
+    var list = state.settings.stages;
+    for (var i = 0; i < list.length; i++) {
+      if (list[i].name.toLowerCase() === n || list[i].id === n) return list[i].id;
+    }
+    return list[0] ? list[0].id : "identified";
+  }
+  function rowsToTargets(rows) {
+    var head = rows[0].map(function (c) { return String(c).trim().toLowerCase(); });
+    var out = [];
+    for (var r = 1; r < rows.length; r++) {
+      var rec = blankTarget();
+      var sawName = false;
+      for (var c = 0; c < head.length; c++) {
+        var key = IMPORT_MAP[head[c]];
+        if (!key) continue;
+        var raw = String(rows[r][c] == null ? "" : rows[r][c]).trim();
+        if (raw === "" || raw === "—") continue;
+        if (key === "amount" || key === "interestRate" || key === "months" || key === "discount" || key === "capMultiple") {
+          rec[key] = num(raw.replace(/[£$€%,]/g, ""));
+        } else if (key === "stage") rec.stage = stageIdByName(raw);
+        else if (key === "currency") rec.currency = CURRENCIES.indexOf(raw.toUpperCase()) !== -1 ? raw.toUpperCase() : "GBP";
+        else if (key === "instrument") rec.instrument = /note/i.test(raw) ? "note" : "equity";
+        else if (key.indexOf("Date") !== -1) rec[key] = parseDateIn(raw);
+        else { rec[key] = raw; if (key === "name") sawName = true; }
+      }
+      if (sawName) out.push(rec);
+    }
+    return out;
+  }
+  function importCSV() {
+    var box = document.getElementById("csvIn");
+    if (!box || !box.value.trim()) { toast("Paste the CSV first."); return; }
+    var rows;
+    try { rows = parseCSV(box.value); } catch (e) { rows = []; }
+    if (rows.length < 2) { toast("That does not look like a CSV with a header row and at least one record."); return; }
+    var recs = rowsToTargets(rows);
+    if (!recs.length) { toast("No records found. The file needs a column headed Name or Target."); return; }
+    var maxOrder = 0;
+    targetList().forEach(function (t) { if (typeof t.order === "number" && t.order > maxOrder) maxOrder = t.order; });
+    ask({
+      title: "Import records",
+      body: "Add " + recs.length + " record" + (recs.length === 1 ? "" : "s") + " to the CRM: " +
+        recs.slice(0, 5).map(function (t) { return t.name; }).join("; ") +
+        (recs.length > 5 ? "; and " + (recs.length - 5) + " more" : "") +
+        ". Nothing already in the CRM is changed or replaced.",
+      confirm: "Import " + recs.length
+    }, async function () {
+      for (var i = 0; i < recs.length; i++) {
+        recs[i].order = maxOrder + (i + 1) * 10;
+        await putTarget(newId("t_"), recs[i]);
+      }
+      closeOverlay();
+      toast(recs.length + " record" + (recs.length === 1 ? "" : "s") + " imported.");
+    });
+  }
 
   function csvCell(v) {
     var s = v == null ? "" : String(v);
@@ -1622,14 +1838,22 @@
       var a = act.dataset.act;
       if (a === "new") { openEditor("new"); return; }
       if (a === "export") { exportCSV(); return; }
+      if (a === "manual-order") {
+        if (isManual()) { state.sort = { key: "amount", dir: "desc" }; savePrefs(); render(); }
+        else enableManualOrder();
+        return;
+      }
       if (a === "open-settings") { openSettings(); return; }
       if (a === "clear-examples") { clearExamples(); return; }
+      if (a === "import-local") { importLocal(); return; }
       if (a === "new-scenario") { newScenario(); return; }
       if (a === "del-scenario") { deleteScenario(); return; }
       if (a === "fill") { fillToTarget(); return; }
       if (a === "select-all") { setSelection(pickable().map(function (t) { return t.id; })); return; }
       if (a === "select-none") { setSelection([]); return; }
     }
+    var mv = e.target.closest("[data-move]");
+    if (mv) { e.stopPropagation(); if (!mv.disabled) moveTarget(mv.dataset.move, +mv.dataset.dir); return; }
     var sortTh = e.target.closest("th[data-sort]");
     if (sortTh) {
       var k = sortTh.dataset.sort;
@@ -1700,6 +1924,7 @@
         renderSettings(); return;
       }
       if (a === "save-settings") { saveSettings(); return; }
+      if (a === "import-csv") { importCSV(); return; }
     }
     var inst = e.target.closest("[data-inst]");
     if (inst) { readDraftFromDOM(); state.draft.instrument = inst.dataset.inst; renderEditor(); return; }
@@ -1823,6 +2048,11 @@
     var id = state.editing === "new" ? newId("t_") : state.editing;
     delete d.id;
     delete d.isExample;   /* edited by a person: no longer disposable sample data */
+    if (typeof d.order !== "number") {
+      var maxOrder = 0;
+      targetList().forEach(function (t) { if (typeof t.order === "number" && t.order > maxOrder) maxOrder = t.order; });
+      d.order = maxOrder + 10;   /* new records land at the end of a manual order */
+    }
     var ok = await putTarget(id, d);
     if (ok) { closeOverlay(); toast(state.editing === "new" ? "Target added." : "Saved."); }
   }

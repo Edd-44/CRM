@@ -10,6 +10,12 @@ Published as a private Claude Artifact backed by a shared, real-time database, s
 2. **Raise builder** - set a target raise in sterling and the equity offered for it, then toggle individual targets in and out to see which combinations reach it and what each costs in equity. Supports multiple named scenarios, a greedy "fill to target" helper, and a breakdown of the selection by currency.
 3. **Timeline** - a Gantt-style bar per target running from first conversation to expected completion, coloured by stage, with the last conversation marked and today shown as a dotted line. Below it, a stage board showing where every conversation currently sits.
 
+## Where the records live
+
+The page writes to the artifact's shared database when it can reach it, and the status in the masthead says which store is in use: "Live · shared" or "This device only". A page that cannot reach the shared database falls back to this browser's local storage, where nothing is visible to anyone else; it now says so in a banner across the top of the Targets page rather than only in the status pill. If records are later found in local storage that are not in the shared database, the page offers to copy them across.
+
+Two artifacts holding the same page hold two separate databases. Records entered in one never appear in the other; moving them means exporting to CSV from the first and importing into the second.
+
 ## Conventions
 
 - **Base currency is sterling.** EUR and USD amounts are stored in their own currency and converted for every total. Rates are point in time and entered by hand in Settings ("units per GBP"), because the published page cannot reach an external rates feed. The Targets and Raise builder pages both carry a rates box showing the values in force and the date they were last updated; that date stamps itself to today when a rate is changed, and can be overridden. The box turns amber once the rates are more than 30 days old.
@@ -41,7 +47,9 @@ All records live in the artifact's shared database:
 | `targets/<id>` | one document per fundraising target |
 | `scenarios/<id>` | one document per raise scenario (name, target amount, selected target ids) |
 
-Every viewer of the artifact reads and writes the same records; changes appear live in other people's browsers. Export to CSV from the Targets page.
+Every viewer of the artifact reads and writes the same records; changes appear live in other people's browsers. Export to CSV from the Targets page, and import from CSV in Settings: columns are matched by name, Name or Target is the only required one, and records are added rather than overwritten.
+
+Rows can be ordered by hand. "Manual order" on the Targets page gives every record a position, seeded from whatever order is on screen when it is switched on, and puts up and down arrows on each row. The arrows act on the whole list, so they are disabled while a search or filter is active.
 
 ## Running it outside Claude
 
