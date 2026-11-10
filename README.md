@@ -50,6 +50,8 @@ All records live in the artifact's shared database:
 
 Every viewer of the artifact reads and writes the same records; changes appear live in other people's browsers. Export to CSV from the Targets page, and import from CSV in Settings: columns are matched by name, Name or Target is the only required one, and records are added rather than overwritten.
 
+Columns can be rearranged. "Columns" on the Targets page opens a list of every column: up sends one left in the table, down sends it right, and unticking hides it. Target is always shown. The arrangement is held per viewer in that browser, so one person reorganising their table does not change anyone else's.
+
 Rows can be ordered by hand. "Manual order" on the Targets page gives every record a position, seeded from whatever order is on screen when it is switched on, and puts up and down arrows on each row. The arrows act on the whole list, so they are disabled while a search or filter is active.
 
 ## Running it outside Claude

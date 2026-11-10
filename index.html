@@ -335,7 +335,7 @@
   .banner { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; background: color-mix(in srgb, var(--warn) 12%, var(--surface)); border: 1px solid color-mix(in srgb, var(--warn) 35%, transparent); border-radius: var(--radius); padding: 10px 14px; margin-bottom: 16px; font-size: 13px; }
   .dlg-scrim { z-index: 70; }
   .dlg-wrap { z-index: 71; }
-  .dlg-wrap .modal-box { width: min(460px, 100%); }
+  .dlg-wrap .modal-box, .modal-box.narrow { width: min(460px, 100%); }
   .dlg-wrap .sheet-body { gap: 12px; }
   .toast {
     position: fixed; left: 50%; transform: translateX(-50%); bottom: 24px;
@@ -408,6 +408,19 @@
     interestCompounds: true
   };
 
+  var COLUMNS = [
+    { id: "name",         label: "Target",       sort: "name", fixed: true },
+    { id: "relationship", label: "Relationship", sort: "relationship" },
+    { id: "stage",        label: "Stage",        sort: "stage" },
+    { id: "owner",        label: "Owner",        sort: "owner" },
+    { id: "amount",       label: "Indicative",   sort: "amount", align: "right" },
+    { id: "instrument",   label: "Instrument" },
+    { id: "last",         label: "Last spoke",   sort: "last" },
+    { id: "next",         label: "Next steps" },
+    { id: "close",        label: "Target close", sort: "close" }
+  ];
+  var COLUMN_IDS = COLUMNS.map(function (c) { return c.id; });
+
   var CURRENCIES = ["GBP", "EUR", "USD"];
   var LS_KEY = "justclaim-crm-v1";
   var LS_PREFS = "justclaim-crm-prefs-v1";
@@ -426,6 +439,8 @@
     sort: { key: "amount", dir: "desc" },
     filter: { q: "", stage: "", owner: "" },
     showPassed: false,
+    cols: COLUMN_IDS.slice(),
+    hiddenCols: {},
     editing: null,
     draft: null,
     modal: null,
@@ -712,11 +727,20 @@
       if (p.page) state.page = p.page;
       if (p.activeScenario) state.activeScenario = p.activeScenario;
       if (p.sort) state.sort = p.sort;
+      if (Array.isArray(p.cols)) {
+        var kept = p.cols.filter(function (id) { return COLUMN_IDS.indexOf(id) !== -1; });
+        COLUMN_IDS.forEach(function (id) { if (kept.indexOf(id) === -1) kept.push(id); });
+        state.cols = kept;
+      }
+      if (p.hiddenCols && typeof p.hiddenCols === "object") state.hiddenCols = p.hiddenCols;
     } catch (e) { /* prefs are a convenience only */ }
   }
   function savePrefs() {
     try {
-      localStorage.setItem(LS_PREFS, JSON.stringify({ page: state.page, activeScenario: state.activeScenario, sort: state.sort }));
+      localStorage.setItem(LS_PREFS, JSON.stringify({
+        page: state.page, activeScenario: state.activeScenario, sort: state.sort,
+        cols: state.cols, hiddenCols: state.hiddenCols
+      }));
     } catch (e) { /* ignore */ }
   }
   function loadLocal() {
@@ -1034,6 +1058,7 @@
       state.settings.team.map(function (m) {
         return '<option value="' + esc(m) + '"' + (state.filter.owner === m ? " selected" : "") + ">" + esc(m) + "</option>";
       }).join("") + "</select></div>" +
+      '<div class="field"><label>&nbsp;</label><button class="btn secondary" data-act="columns" type="button">Columns</button></div>' +
       '<div class="field"><label>&nbsp;</label><button class="btn secondary" data-act="manual-order" aria-pressed="' + isManual() + '" type="button">' +
       (isManual() ? "Manual order · on" : "Manual order") + "</button></div>" +
       '<div class="field"><label>&nbsp;</label><button class="btn secondary" data-act="export" type="button">Export CSV</button></div>' +
@@ -1048,11 +1073,13 @@
       return h;
     }
 
+    var cols = visibleCols();
     h += '<div class="table-shell"><table><thead><tr>' +
-      (isManual() ? '<th class="ordcol" title="Drag-free reordering">Order</th>' : "") +
-      th("name", "Target") + th("relationship", "Relationship") + th("stage", "Stage") + th("owner", "Owner") +
-      th("amount", "Indicative", "right") + "<th>Instrument</th>" + th("last", "Last spoke") +
-      "<th>Next steps</th>" + th("close", "Target close") +
+      (isManual() ? '<th class="ordcol">Order</th>' : "") +
+      cols.map(function (id) {
+        var c = colDef(id);
+        return c.sort ? th(c.sort, c.label, c.align) : "<th>" + esc(c.label) + "</th>";
+      }).join("") +
       "</tr></thead><tbody>";
 
     rows.forEach(function (t, idx) {
@@ -1067,20 +1094,7 @@
             (filtersOn() || idx === rows.length - 1 ? " disabled" : "") + ">↓</button>" +
             "</div></td>"
           : "") +
-        '<td class="name">' + esc(t.name || "Untitled") + (t.isExample ? ' <span class="tag">Example</span>' : "") +
-        (t.contact ? '<div class="sub">' + esc(t.contact) + "</div>" : "") + "</td>" +
-        '<td class="wrapcell">' + (t.relationship ? esc(t.relationship) : '<span class="muted">—</span>') + "</td>" +
-        "<td>" + chip(t.stage) + "</td>" +
-        '<td class="nowrap">' + (t.owner ? esc(t.owner) : '<span class="muted">Unassigned</span>') + "</td>" +
-        '<td class="amount"><span class="gbp">' + (t.amount == null ? "—" : money(toGBP(t.amount, t.currency), "GBP")) + "</span>" +
-        (t.amount != null && t.currency !== "GBP" ? '<span class="native">' + money(t.amount, t.currency) + "</span>" : "") + "</td>" +
-        '<td class="nowrap">' + (t.instrument === "note"
-          ? '<span class="tag">Note</span> <span class="num muted">' + noteSummary(t) + "</span>"
-          : '<span class="tag">Equity</span>') + "</td>" +
-        '<td class="nowrap ' + (isCold ? "cold" : "") + '">' + fmtDate(t.lastConversationDate) +
-        (d != null ? '<div class="sub muted num" style="font-size:11.5px">' + d + "d ago</div>" : "") + "</td>" +
-        '<td class="wrapcell">' + (t.nextSteps ? esc(t.nextSteps) : '<span class="muted">—</span>') + "</td>" +
-        '<td class="nowrap num">' + fmtDate(t.targetCloseDate) + "</td>" +
+        cols.map(function (id) { return cellHTML(id, t, d, isCold); }).join("") +
         "</tr>";
     });
     h += "</tbody></table></div>";
@@ -1122,6 +1136,45 @@
       '<div class="meta">' + meta + "</div>" +
       (meta2 ? '<div class="meta sub">' + meta2 + "</div>" : "") + "</div>";
   }
+  function colDef(id) {
+    for (var i = 0; i < COLUMNS.length; i++) if (COLUMNS[i].id === id) return COLUMNS[i];
+    return null;
+  }
+  function visibleCols() {
+    return state.cols.filter(function (id) {
+      var c = colDef(id);
+      return c && (c.fixed || !state.hiddenCols[id]);
+    });
+  }
+  function cellHTML(id, t, d, isCold) {
+    switch (id) {
+      case "name":
+        return '<td class="name">' + esc(t.name || "Untitled") + (t.isExample ? ' <span class="tag">Example</span>' : "") +
+          (t.contact ? '<div class="sub">' + esc(t.contact) + "</div>" : "") + "</td>";
+      case "relationship":
+        return '<td class="wrapcell">' + (t.relationship ? esc(t.relationship) : '<span class="muted">—</span>') + "</td>";
+      case "stage":
+        return "<td>" + chip(t.stage) + "</td>";
+      case "owner":
+        return '<td class="nowrap">' + (t.owner ? esc(t.owner) : '<span class="muted">Unassigned</span>') + "</td>";
+      case "amount":
+        return '<td class="amount"><span class="gbp">' + (t.amount == null ? "—" : money(toGBP(t.amount, t.currency), "GBP")) + "</span>" +
+          (t.amount != null && t.currency !== "GBP" ? '<span class="native">' + money(t.amount, t.currency) + "</span>" : "") + "</td>";
+      case "instrument":
+        return '<td class="nowrap">' + (t.instrument === "note"
+          ? '<span class="tag">Note</span> <span class="num muted">' + noteSummary(t) + "</span>"
+          : '<span class="tag">Equity</span>') + "</td>";
+      case "last":
+        return '<td class="nowrap ' + (isCold ? "cold" : "") + '">' + fmtDate(t.lastConversationDate) +
+          (d != null ? '<div class="sub muted num" style="font-size:11.5px">' + d + "d ago</div>" : "") + "</td>";
+      case "next":
+        return '<td class="wrapcell">' + (t.nextSteps ? esc(t.nextSteps) : '<span class="muted">—</span>') + "</td>";
+      case "close":
+        return '<td class="nowrap num">' + fmtDate(t.targetCloseDate) + "</td>";
+    }
+    return "<td></td>";
+  }
+
   function th(key, label, align) {
     var on = state.sort.key === key;
     return '<th data-sort="' + key + '"' + (align === "right" ? ' style="text-align:right"' : "") + ">" + esc(label) +
@@ -1605,6 +1658,52 @@
     });
   }
 
+  /* ============================ columns modal ============================ */
+
+  function openColumns() {
+    state.modal = { kind: "columns" };
+    renderColumns();
+  }
+  function renderColumns() {
+    var h = '<div class="scrim" data-act="close"></div><div class="modal"><div class="modal-box narrow" role="dialog" aria-modal="true" aria-label="Columns">' +
+      '<div class="sheet-head"><h2>Columns</h2><div style="margin-left:auto"></div>' +
+      '<button class="icon-btn" data-act="close" type="button" aria-label="Close">✕</button></div>' +
+      '<div class="sheet-body">' +
+      '<p class="hint" style="margin:0">Up sends a column left in the table, down sends it right. Untick to hide one. This is your own view of the table and does not change what anyone else sees.</p>' +
+      '<div class="list-edit">';
+    state.cols.forEach(function (id, i) {
+      var c = colDef(id);
+      if (!c) return;
+      var shown = c.fixed || !state.hiddenCols[id];
+      h += '<div class="item">' +
+        '<label style="display:flex;align-items:center;gap:9px;flex:1;cursor:' + (c.fixed ? "default" : "pointer") + '">' +
+        '<input type="checkbox" data-colvis="' + esc(id) + '"' + (shown ? " checked" : "") + (c.fixed ? " disabled" : "") + ' style="width:auto">' +
+        "<span>" + esc(c.label) + (c.fixed ? ' <span class="hint">always shown</span>' : "") + "</span></label>" +
+        '<button class="icon-btn" data-colmv="' + esc(id) + '" data-dir="-1" type="button" aria-label="Move ' + esc(c.label) + ' left"' +
+        (i === 0 ? " disabled" : "") + ">↑</button>" +
+        '<button class="icon-btn" data-colmv="' + esc(id) + '" data-dir="1" type="button" aria-label="Move ' + esc(c.label) + ' right"' +
+        (i === state.cols.length - 1 ? " disabled" : "") + ">↓</button>" +
+        "</div>";
+    });
+    h += "</div></div><div class='sheet-foot'>" +
+      '<button class="btn" data-act="close" type="button">Done</button>' +
+      '<div style="margin-left:auto"></div>' +
+      '<button class="btn secondary" data-act="reset-cols" type="button">Reset to default</button>' +
+      "</div></div></div>";
+    document.getElementById("overlay").innerHTML = h;
+  }
+  function moveColumn(id, dir) {
+    var i = state.cols.indexOf(id);
+    var j = i + dir;
+    if (i < 0 || j < 0 || j >= state.cols.length) return;
+    state.cols.splice(j, 0, state.cols.splice(i, 1)[0]);
+    savePrefs();
+    renderColumns();
+    render();
+    var again = document.querySelector('[data-colmv="' + id + '"][data-dir="' + dir + '"]');
+    if (again && !again.disabled) again.focus();
+  }
+
   /* ============================ settings modal ============================ */
 
   function openSettings() {
@@ -1864,6 +1963,7 @@
       if (a === "open-settings") { openSettings(); return; }
       if (a === "clear-examples") { clearExamples(); return; }
       if (a === "import-local") { importLocal(); return; }
+      if (a === "columns") { openColumns(); return; }
       if (a === "new-scenario") { newScenario(); return; }
       if (a === "del-scenario") { deleteScenario(); return; }
       if (a === "fill") { fillToTarget(); return; }
@@ -1942,8 +2042,15 @@
         renderSettings(); return;
       }
       if (a === "save-settings") { saveSettings(); return; }
+      if (a === "reset-cols") {
+        state.cols = COLUMN_IDS.slice();
+        state.hiddenCols = {};
+        savePrefs(); renderColumns(); render(); return;
+      }
       if (a === "import-csv") { importCSV(); return; }
     }
+    var colmv = e.target.closest("[data-colmv]");
+    if (colmv) { if (!colmv.disabled) moveColumn(colmv.dataset.colmv, +colmv.dataset.dir); return; }
     var inst = e.target.closest("[data-inst]");
     if (inst) { readDraftFromDOM(); state.draft.instrument = inst.dataset.inst; renderEditor(); return; }
     var rmTeam = e.target.closest("[data-rm-team]");
@@ -1972,6 +2079,15 @@
       var tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp;
       renderSettings(); return;
     }
+  });
+
+  document.getElementById("overlay").addEventListener("change", function (e) {
+    var vis = e.target.closest("[data-colvis]");
+    if (!vis) return;
+    if (e.target.checked) delete state.hiddenCols[vis.dataset.colvis];
+    else state.hiddenCols[vis.dataset.colvis] = true;
+    savePrefs();
+    render();
   });
 
   document.getElementById("overlay").addEventListener("input", function (e) {
