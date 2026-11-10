@@ -673,6 +673,10 @@
     }
     render();
   }
+  async function handleMove(id, dir) {
+    if (!isManual()) await enableManualOrder();   /* seeded from what is on screen, so nothing jumps */
+    await moveTarget(id, dir);
+  }
   async function moveTarget(id, dir) {
     var list = sorted(targetList());
     var i = -1;
@@ -1034,8 +1038,6 @@
       state.settings.team.map(function (m) {
         return '<option value="' + esc(m) + '"' + (state.filter.owner === m ? " selected" : "") + ">" + esc(m) + "</option>";
       }).join("") + "</select></div>" +
-      '<div class="field"><label>&nbsp;</label><button class="btn secondary" data-act="manual-order" aria-pressed="' + isManual() + '" type="button">' +
-      (isManual() ? "Manual order · on" : "Manual order") + "</button></div>" +
       '<div class="field"><label>&nbsp;</label><button class="btn secondary" data-act="export" type="button">Export CSV</button></div>' +
       "</div>";
 
@@ -1049,7 +1051,8 @@
     }
 
     h += '<div class="table-shell"><table><thead><tr>' +
-      (isManual() ? '<th class="ordcol" title="Drag-free reordering">Order</th>' : "") +
+      '<th class="ordcol" data-sort="manual" title="Sort by your own arrangement">Order' +
+      (isManual() ? ' <span class="arrow">▲</span>' : "") + "</th>" +
       th("name", "Target") + th("relationship", "Relationship") + th("stage", "Stage") + th("owner", "Owner") +
       th("amount", "Indicative", "right") + "<th>Instrument</th>" + th("last", "Last spoke") +
       "<th>Next steps</th>" + th("close", "Target close") +
@@ -1059,14 +1062,12 @@
       var d = daysSince(t.lastConversationDate);
       var isCold = !stageById(t.stage).dead && (d == null || d > state.settings.coldDays);
       h += '<tr data-id="' + esc(t.id) + '">' +
-        (isManual()
-          ? '<td class="ordcol"><div class="ord-btns">' +
-            '<button class="icon-btn" data-move="' + esc(t.id) + '" data-dir="-1" type="button" aria-label="Move up"' +
-            (filtersOn() || idx === 0 ? " disabled" : "") + ">↑</button>" +
-            '<button class="icon-btn" data-move="' + esc(t.id) + '" data-dir="1" type="button" aria-label="Move down"' +
-            (filtersOn() || idx === rows.length - 1 ? " disabled" : "") + ">↓</button>" +
-            "</div></td>"
-          : "") +
+        '<td class="ordcol"><div class="ord-btns">' +
+        '<button class="icon-btn" data-move="' + esc(t.id) + '" data-dir="-1" type="button" aria-label="Move up"' +
+        (filtersOn() || idx === 0 ? " disabled" : "") + ">↑</button>" +
+        '<button class="icon-btn" data-move="' + esc(t.id) + '" data-dir="1" type="button" aria-label="Move down"' +
+        (filtersOn() || idx === rows.length - 1 ? " disabled" : "") + ">↓</button>" +
+        "</div></td>" +
         '<td class="name">' + esc(t.name || "Untitled") + (t.isExample ? ' <span class="tag">Example</span>' : "") +
         (t.contact ? '<div class="sub">' + esc(t.contact) + "</div>" : "") + "</td>" +
         '<td class="wrapcell">' + (t.relationship ? esc(t.relationship) : '<span class="muted">—</span>') + "</td>" +
@@ -1084,8 +1085,10 @@
         "</tr>";
     });
     h += "</tbody></table></div>";
-    if (isManual() && filtersOn()) {
+    if (filtersOn()) {
       h += '<p class="hint" style="margin:10px 0 0">Clear the search and filters to move rows: the arrows act on the whole list, so moving while filtered would not land where you expect.</p>';
+    } else if (!isManual()) {
+      h += '<p class="hint" style="margin:10px 0 0">The arrows set your own order. Using one switches the table to that order, starting from how it is arranged now; click a column heading to sort by it again, or Order to come back.</p>';
     }
     return h;
   }
@@ -1856,11 +1859,6 @@
       var a = act.dataset.act;
       if (a === "new") { openEditor("new"); return; }
       if (a === "export") { exportCSV(); return; }
-      if (a === "manual-order") {
-        if (isManual()) { state.sort = { key: "amount", dir: "desc" }; savePrefs(); render(); }
-        else enableManualOrder();
-        return;
-      }
       if (a === "open-settings") { openSettings(); return; }
       if (a === "clear-examples") { clearExamples(); return; }
       if (a === "import-local") { importLocal(); return; }
@@ -1871,7 +1869,7 @@
       if (a === "select-none") { setSelection([]); return; }
     }
     var mv = e.target.closest("[data-move]");
-    if (mv) { e.stopPropagation(); if (!mv.disabled) moveTarget(mv.dataset.move, +mv.dataset.dir); return; }
+    if (mv) { e.stopPropagation(); if (!mv.disabled) handleMove(mv.dataset.move, +mv.dataset.dir); return; }
     var sortTh = e.target.closest("th[data-sort]");
     if (sortTh) {
       var k = sortTh.dataset.sort;

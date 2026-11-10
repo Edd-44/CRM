@@ -50,7 +50,7 @@ All records live in the artifact's shared database:
 
 Every viewer of the artifact reads and writes the same records; changes appear live in other people's browsers. Export to CSV from the Targets page, and import from CSV in Settings: columns are matched by name, Name or Target is the only required one, and records are added rather than overwritten.
 
-Rows can be ordered by hand. "Manual order" on the Targets page gives every record a position, seeded from whatever order is on screen when it is switched on, and puts up and down arrows on each row. The arrows act on the whole list, so they are disabled while a search or filter is active.
+Rows can be ordered by hand. Up and down arrows sit in an Order column at the far left of the Targets table, always available. Using one adopts a manual arrangement, seeded from however the table is sorted at that moment, so nothing jumps; clicking a column heading sorts by that column again, and clicking Order returns to the arrangement. The arrows act on the whole list, so they are disabled while a search or filter is active. The order is stored on the records, so everyone sees the same arrangement.
 
 ## Running it outside Claude
 
